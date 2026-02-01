@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # khelera_sikne
 
 A new Flutter project.
@@ -14,3 +15,7 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# Khelera_Sikne_Gamified_Learning_App
+This repository contains an Induvidual Project of 7th semester
+>>>>>>> ce72010f0d0533e33543be7d079b8c581a59abb7
