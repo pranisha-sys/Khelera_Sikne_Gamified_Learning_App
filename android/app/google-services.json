@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "175868452618",
+    "firebase_url": "https://khelera-sikne-default-rtdb.firebaseio.com",
+    "project_id": "khelera-sikne",
+    "storage_bucket": "khelera-sikne.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:175868452618:android:a60f1cb186c1268f0ca4f3",
+        "android_client_info": {
+          "package_name": "khelera_sikne.com"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6kTLz3w3MkbKm9a-EILgU9gpHQXsmXCc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
