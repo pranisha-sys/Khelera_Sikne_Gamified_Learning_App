@@ -1,31 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'admin_login_page.dart'; // Import the admin home page
-
-void main() {
-  runApp(const KhelaraSikneApp());
-}
-
-class KhelaraSikneApp extends StatelessWidget {
-  const KhelaraSikneApp({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Khelara Sikne',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0xFF2196F3),
-        scaffoldBackgroundColor: const Color(0xFFECF0F5),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2196F3),
-        ),
-        useMaterial3: true,
-      ),
-      home: const AdminLoginPage(),
-    );
-  }
-}
+import 'home_page.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({Key? key}) : super(key: key);
@@ -48,7 +23,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         ),
       );
     } else {
-      // Navigate to admin home page
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AdminHomePage()),
@@ -68,56 +42,29 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo and Title Section
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF2196F3),
-                          Color(0xFF1976D2),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2196F3).withOpacity(0.3),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.lightbulb,
-                      size: 50,
-                      color: Color(0xFFFFC107),
+                  // ===== LOGO IMAGE =====
+                  SizedBox(
+                    width: 150,
+                    height: 150,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      fit: BoxFit.contain,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 2),
+                  // Title is already inside the logo,
+                  // but keep subtitle below
                   const Text(
-                    'Khelara Sikne',
+                    'Matter Learning Platform',
                     style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1E3A5F),
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Science Learning Platform',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF6B7280),
+                      fontSize: 20,
+                      color: Color(0xFF000000),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 10),
 
-                  // Login Card
+                  // ===== LOGIN CARD =====
                   Container(
                     padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
@@ -134,96 +81,68 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Welcome Text
                         Row(
                           children: [
                             const Text(
                               'Welcome Back ',
                               style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF1F2937),
+                                fontSize: 35,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F6F85),
                               ),
                             ),
-                            Text(
-                              '👋',
-                              style: TextStyle(fontSize: 28),
-                            ),
+                            const Text('👋', style: TextStyle(fontSize: 30)),
                           ],
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Login to manage science learning',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Color(0xFF6B7280),
-                          ),
+                          'Login to manage Matter learning',
+                          style:
+                              TextStyle(fontSize: 18, color: Color(0xFF000000)),
                         ),
                         const SizedBox(height: 32),
 
-                        // Email Field
-                        const Text(
-                          'Email',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
+                        // Email
+                        const Text('Email',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF374151))),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _emailController,
                           decoration: InputDecoration(
                             hintText: 'Enter your email',
                             hintStyle: const TextStyle(
-                              color: Color(0xFF9CA3AF),
-                              fontSize: 15,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.email_outlined,
-                              color: Color(0xFF9CA3AF),
-                              size: 22,
-                            ),
+                                color: Color(0xFF9CA3AF), fontSize: 15),
+                            prefixIcon: const Icon(Icons.email_outlined,
+                                color: Color(0xFF9CA3AF), size: 22),
                             filled: true,
                             fillColor: const Color(0xFFF9FAFB),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
-                                width: 1,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE5E7EB))),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
-                                width: 1,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE5E7EB))),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF2196F3),
-                                width: 2,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF2196F3), width: 2)),
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
+                                horizontal: 16, vertical: 16),
                           ),
                         ),
                         const SizedBox(height: 20),
 
-                        // Password Field
-                        const Text(
-                          'Password',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
+                        // Password
+                        const Text('Password',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF374151))),
                         const SizedBox(height: 8),
                         TextField(
                           controller: _passwordController,
@@ -231,72 +150,49 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           decoration: InputDecoration(
                             hintText: 'Enter your password',
                             hintStyle: const TextStyle(
-                              color: Color(0xFF9CA3AF),
-                              fontSize: 15,
-                            ),
-                            prefixIcon: const Icon(
-                              Icons.lock_outline,
-                              color: Color(0xFF9CA3AF),
-                              size: 22,
-                            ),
+                                color: Color(0xFF9CA3AF), fontSize: 15),
+                            prefixIcon: const Icon(Icons.lock_outline,
+                                color: Color(0xFF9CA3AF), size: 22),
                             filled: true,
                             fillColor: const Color(0xFFF9FAFB),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
-                                width: 1,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE5E7EB))),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E7EB),
-                                width: 1,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE5E7EB))),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF2196F3),
-                                width: 2,
-                              ),
-                            ),
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                    color: Color(0xFF2196F3), width: 2)),
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 16,
-                            ),
+                                horizontal: 16, vertical: 16),
                           ),
                         ),
                         const SizedBox(height: 24),
 
-                        // Select Your Role
-                        const Text(
-                          'Select Your Role',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF374151),
-                          ),
-                        ),
+                        // Role
+                        const Text('Select Your Role',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF374151))),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
-                              child: _buildRoleButton(
-                                'Admin',
-                                Icons.shield_outlined,
-                                _selectedRole == 'Admin',
-                              ),
-                            ),
+                                child: _buildRoleButton(
+                                    'Admin',
+                                    Icons.shield_outlined,
+                                    _selectedRole == 'Admin')),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _buildRoleButton(
-                                'Teacher',
-                                Icons.person_outline,
-                                _selectedRole == 'Teacher',
-                              ),
-                            ),
+                                child: _buildRoleButton(
+                                    'Teacher',
+                                    Icons.person_outline,
+                                    _selectedRole == 'Teacher')),
                           ],
                         ),
                         const SizedBox(height: 24),
@@ -311,19 +207,14 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                               backgroundColor: const Color(0xFFFBBF24),
                               foregroundColor: const Color(0xFF1F2937),
                               elevation: 0,
-                              shadowColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                                  borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
+                            child: const Text('Login',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5)),
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -333,34 +224,18 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           child: TextButton(
                             onPressed: () {},
                             style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF2196F3),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                            ),
-                            child: const Text(
-                              'Forgot Password?',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                                foregroundColor: const Color(0xFF2196F3)),
+                            child: const Text('Forgot Password?',
+                                style: TextStyle(
+                                    fontSize: 15, fontWeight: FontWeight.w600)),
                           ),
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 32),
-
-                  // Copyright
-                  const Text(
-                    '© 2026 Khelara Sikne. All rights reserved.',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
+                  const Text('© 2026 Khelera Sikne. All rights reserved.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
                 ],
               ),
             ),
@@ -372,11 +247,9 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
   Widget _buildRoleButton(String role, IconData icon, bool isSelected) {
     return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedRole = role;
-        });
-      },
+      onTap: () => setState(() {
+        _selectedRole = role;
+      }),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
@@ -390,24 +263,19 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? const Color(0xFF2196F3)
-                  : const Color(0xFF9CA3AF),
-              size: 32,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              role,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+            Icon(icon,
                 color: isSelected
                     ? const Color(0xFF2196F3)
-                    : const Color(0xFF6B7280),
-              ),
-            ),
+                    : const Color(0xFF9CA3AF),
+                size: 32),
+            const SizedBox(height: 10),
+            Text(role,
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected
+                        ? const Color(0xFF2196F3)
+                        : const Color(0xFF6B7280))),
           ],
         ),
       ),
