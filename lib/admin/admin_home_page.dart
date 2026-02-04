@@ -1,415 +1,160 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class AdminHomePage extends StatefulWidget {
-  const AdminHomePage({super.key});
+  const AdminHomePage({Key? key}) : super(key: key);
 
   @override
   State<AdminHomePage> createState() => _AdminHomePageState();
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
-  int _selectedBottomIndex = 0;
+  int _selectedIndex = 0;
+
+  // Sample user data - you can replace this with actual logged-in user data
+  final String _userName = "Admin User";
+  final String _userEmail = "admin@khelerasikne.com";
+
+  // Variables to store counts
+  int _totalStudents = 0;
+  int _totalTeachers = 0;
+  int _totalTopics = 0;
+  bool _isLoading = true;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: Column(
-        children: [
-          // ===== BLUE HEADER =====
-          _buildHeader(),
-
-          // ===== SCROLLABLE BODY =====
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-
-                    // ===== STAT CARDS (Horizontal Scroll) =====
-                    _buildStatCards(),
-
-                    const SizedBox(height: 24),
-
-                    // ===== QUICK ACTIONS =====
-                    const Text(
-                      'Quick Actions',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildQuickActions(),
-
-                    const SizedBox(height: 24),
-
-                    // ===== RECENT ACTIVITY =====
-                    const Text(
-                      'Recent Activity',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildRecentActivity(),
-
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // ===== BOTTOM NAVIGATION BAR =====
-      bottomNavigationBar: _buildBottomNavBar(),
-    );
+  void initState() {
+    super.initState();
+    _fetchDashboardData();
   }
 
-  // ===================== HEADER =====================
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.only(top: 56, left: 20, right: 20, bottom: 24),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1565C0), // dark blue
-            Color(0xFF42A5F5), // light blue
-          ],
-        ),
+  // Fetch all dashboard data from Firebase
+  Future<void> _fetchDashboardData() async {
+    try {
+      // Fetch total students
+      final studentsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'student')
+          .get();
+
+      // Fetch total teachers
+      final teachersSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'teacher')
+          .get();
+
+      // Fetch total science topics
+      final topicsSnapshot =
+          await FirebaseFirestore.instance.collection('Matter_subtopics').get();
+
+      setState(() {
+        _totalStudents = studentsSnapshot.docs.length;
+        _totalTeachers = teachersSnapshot.docs.length;
+        _totalTopics = topicsSnapshot.docs.length;
+        _isLoading = false;
+      });
+
+      print(
+          "✅ Students: $_totalStudents, Teachers: $_totalTeachers, Topics: $_totalTopics");
+    } catch (e) {
+      print("❌ Error fetching dashboard data: $e");
+      setState(() {
+        _isLoading = false;
+      });
+
+      // Show error message to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading data: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onBottomNavTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    // Handle navigation based on selected index
+    switch (index) {
+      case 0:
+        // Already on Dashboard
+        break;
+      case 1:
+        // Navigate to Users
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Users page - Coming soon!')),
+        );
+        break;
+      case 2:
+        // Navigate to Content
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Content page - Coming soon!')),
+        );
+        break;
+      case 3:
+        // Navigate to Analytics
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Analytics page - Coming soon!')),
+        );
+        break;
+      case 4:
+        // Navigate to Settings
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Settings page - Coming soon!')),
+        );
+        break;
+    }
+  }
+
+  void _showProfileMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Left: Welcome text
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Welcome Admin ',
-                    style: TextStyle(
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Profile Header
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: const Color(0xFF0EA5E9),
+                  child: Text(
+                    _userName[0].toUpperCase(),
+                    style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
                     ),
                   ),
-                  const Text('👋', style: TextStyle(fontSize: 24)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Manage your science platform',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white70,
                 ),
-              ),
-            ],
-          ),
-
-          // Right: Profile icon
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.24),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.person_outlined,
-                color: Colors.white, size: 26),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===================== STAT CARDS (Horizontal Scroll) =====================
-  Widget _buildStatCards() {
-    final List<Map<String, dynamic>> stats = [
-      {
-        'title': 'Total Students',
-        'value': '856',
-        'emoji': '🎓',
-        'color1': Color(0xFF1565C0),
-        'color2': Color(0xFF1976D2),
-      },
-      {
-        'title': 'Total Teachers',
-        'value': '42',
-        'emoji': '👨‍🏫',
-        'color1': Color(0xFF283593),
-        'color2': Color(0xFF3949AB),
-      },
-      {
-        'title': 'Science Courses',
-        'value': '24',
-        'emoji': '🔬',
-        'color1': Color(0xFF1565C0),
-        'color2': Color(0xFF42A5F5),
-      },
-      {
-        'title': 'Active Quizzes',
-        'value': '18',
-        'emoji': '📝',
-        'color1': Color(0xFF283593),
-        'color2': Color(0xFF5C6BC0),
-      },
-    ];
-
-    return SizedBox(
-      height: 140,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: stats.length,
-        itemBuilder: (context, index) {
-          final stat = stats[index];
-          return Padding(
-            padding: EdgeInsets.only(right: 12, left: index == 0 ? 0 : 0),
-            child: Container(
-              width: 160,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [stat['color1'], stat['color2']],
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Emoji icon
-                  Text(stat['emoji'], style: const TextStyle(fontSize: 28)),
-
-                  // Value + Title
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stat['value'],
-                        style: const TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        stat['title'],
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ===================== QUICK ACTIONS (2x2 Grid) =====================
-  Widget _buildQuickActions() {
-    final List<Map<String, dynamic>> actions = [
-      {
-        'title': 'Manage Users',
-        'subtitle': 'Add or edit users',
-        'emoji': '👥',
-        'color': Color(0xFFE8EAF6)
-      },
-      {
-        'title': 'Science Topics',
-        'subtitle': 'Manage topics',
-        'emoji': '🔬',
-        'color': Color(0xFFE3F2FD)
-      },
-      {
-        'title': 'Create Quiz',
-        'subtitle': 'New assessment',
-        'emoji': '📝',
-        'color': Color(0xFFFCE4EC)
-      },
-      {
-        'title': 'Rewards',
-        'subtitle': 'Manage badges',
-        'emoji': '🏆',
-        'color': Color(0xFFFFF3E0)
-      },
-    ];
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.1,
-      ),
-      itemCount: actions.length,
-      itemBuilder: (context, index) {
-        final action = actions[index];
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Emoji in colored circle
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: action['color'],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(action['emoji'],
-                      style: const TextStyle(fontSize: 22)),
-                ),
-              ),
-              const Spacer(),
-              // Title
-              Text(
-                action['title'],
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2937),
-                ),
-              ),
-              const SizedBox(height: 2),
-              // Subtitle
-              Text(
-                action['subtitle'],
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF7F8C8D),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ===================== RECENT ACTIVITY =====================
-  Widget _buildRecentActivity() {
-    final List<Map<String, dynamic>> activities = [
-      {
-        'title': 'New teacher registered',
-        'time': '2 min ago',
-        'emoji': '✅',
-        'color': Color(0xFFE8F5E9)
-      },
-      {
-        'title': 'Quiz completed by 23 students',
-        'time': '15 min ago',
-        'emoji': '📊',
-        'color': Color(0xFFE3F2FD)
-      },
-      {
-        'title': 'New badge awarded',
-        'time': '1 hour ago',
-        'emoji': '🎯',
-        'color': Color(0xFFFCE4EC)
-      },
-      {
-        'title': 'Science topic updated',
-        'time': '2 hours ago',
-        'emoji': '📚',
-        'color': Color(0xFFE8EAF6)
-      },
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: activities.length,
-        separatorBuilder: (context, index) =>
-            const Divider(height: 1, color: Color(0xFFF0F0F0)),
-        itemBuilder: (context, index) {
-          final activity = activities[index];
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                // Emoji in colored circle
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: activity['color'],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(activity['emoji'],
-                        style: const TextStyle(fontSize: 20)),
-                  ),
-                ),
-                const SizedBox(width: 14),
-
-                // Title + Time
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        activity['title'],
+                        _userName,
                         style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                           color: Color(0xFF1F2937),
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
-                        activity['time'],
+                        _userEmail,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF7F8C8D),
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
                         ),
                       ),
                     ],
@@ -417,81 +162,571 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+
+            // Profile Menu Items
+            _buildProfileMenuItem(
+              icon: Icons.person_outline,
+              title: 'My Profile',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Profile page - Coming soon!')),
+                );
+              },
+            ),
+            _buildProfileMenuItem(
+              icon: Icons.settings_outlined,
+              title: 'Account Settings',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Settings page - Coming soon!')),
+                );
+              },
+            ),
+            _buildProfileMenuItem(
+              icon: Icons.help_outline,
+              title: 'Help & Support',
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Help page - Coming soon!')),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
+            _buildProfileMenuItem(
+              icon: Icons.logout,
+              title: 'Logout',
+              iconColor: const Color(0xFFDC2626),
+              textColor: const Color(0xFFDC2626),
+              onTap: () {
+                Navigator.pop(context);
+                _handleLogout();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
       ),
     );
   }
 
-  // ===================== BOTTOM NAV BAR =====================
-  Widget _buildBottomNavBar() {
-    final List<Map<String, dynamic>> navItems = [
-      {'label': 'Dashboard', 'icon': Icons.grid_view_rounded},
-      {'label': 'Users', 'icon': Icons.people_outlined},
-      {'label': 'Content', 'icon': Icons.description_outlined},
-      {'label': 'Analytics', 'icon': Icons.bar_chart_rounded},
-      {'label': 'Settings', 'icon': Icons.settings_outlined},
-    ];
+  Widget _buildProfileMenuItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    Color? iconColor,
+    Color? textColor,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: iconColor ?? const Color(0xFF6B7280),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          color: textColor ?? const Color(0xFF1F2937),
+        ),
+      ),
+      trailing: const Icon(
+        Icons.arrow_forward_ios,
+        size: 16,
+        color: Color(0xFF9CA3AF),
+      ),
+      onTap: onTap,
+    );
+  }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+  void _handleLogout() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close dialog
+              Navigator.pushReplacementNamed(
+                  context, '/'); // Go to select screen
+            },
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Color(0xFFDC2626)),
+            ),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: List.generate(navItems.length, (index) {
-            final item = navItems[index];
-            final isSelected = _selectedBottomIndex == index;
-            return GestureDetector(
-              onTap: () => setState(() {
-                _selectedBottomIndex = index;
-              }),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Color(0xFF2196F3).withOpacity(0.1)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      item['icon'],
-                      color: isSelected
-                          ? const Color(0xFF2196F3)
-                          : const Color(0xFF9CA3AF),
-                      size: 24,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Main Content Area
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0EA5E9),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Section with gradient and stats
+                            _buildHeaderSection(),
+                            const SizedBox(height: 30),
+
+                            // Quick Actions Section
+                            const Text(
+                              'Quick Actions',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF2D3748),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Action Cards Grid
+                            _buildActionCards(),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item['label'],
+            ),
+          ],
+        ),
+      ),
+      // Bottom Navigation Bar
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildNavItem(
+                  icon: Icons.dashboard,
+                  label: 'Dashboard',
+                  index: 0,
+                  isSelected: _selectedIndex == 0,
+                ),
+                _buildNavItem(
+                  icon: Icons.people_outline,
+                  label: 'Users',
+                  index: 1,
+                  isSelected: _selectedIndex == 1,
+                ),
+                _buildNavItem(
+                  icon: Icons.description_outlined,
+                  label: 'Content',
+                  index: 2,
+                  isSelected: _selectedIndex == 2,
+                ),
+                _buildNavItem(
+                  icon: Icons.bar_chart_outlined,
+                  label: 'Analytics',
+                  index: 3,
+                  isSelected: _selectedIndex == 3,
+                ),
+                _buildNavItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  index: 4,
+                  isSelected: _selectedIndex == 4,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required String label,
+    required int index,
+    required bool isSelected,
+  }) {
+    return GestureDetector(
+      onTap: () => _onBottomNavTapped(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF0EA5E9).withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected
+                  ? const Color(0xFF0EA5E9)
+                  : const Color(0xFF9CA3AF),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected
+                    ? const Color(0xFF0EA5E9)
+                    : const Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0EA5E9), Color(0xFF1E40AF)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title and profile icon
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Text(
+                          'Welcome Admin ',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          '👋',
+                          style: TextStyle(fontSize: 32),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Manage your science platform',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.normal,
-                        color: isSelected
-                            ? const Color(0xFF2196F3)
-                            : const Color(0xFF9CA3AF),
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
                   ],
                 ),
+                GestureDetector(
+                  onTap: () => _showProfileMenu(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                    child: const Icon(
+                      Icons.account_circle,
+                      size: 32,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 30),
+
+            // Stats Cards Row - WITH REAL DATA
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatCard(
+                    icon: '🎓',
+                    count: _totalStudents.toString(),
+                    label: 'Total Students',
+                    color: const Color(0xFF0EA5E9),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: '👨‍🏫',
+                    count: _totalTeachers.toString(),
+                    label: 'Total Teachers',
+                    color: const Color(0xFF1E40AF),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatCard(
+                    icon: '🔬',
+                    count: _totalTopics.toString(),
+                    label: 'Science Topics',
+                    color: const Color(0xFF0EA5E9),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required String icon,
+    required String count,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            icon,
+            style: const TextStyle(fontSize: 36),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            count,
+            style: const TextStyle(
+              fontSize: 48,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCards() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.people,
+                iconColor: const Color(0xFF9333EA),
+                backgroundColor: const Color(0xFFF3E8FF),
+                title: 'Manage Users',
+                subtitle: 'Add or edit users',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Manage Users - Coming soon!')),
+                  );
+                },
               ),
-            );
-          }),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.science,
+                iconColor: const Color(0xFF3B82F6),
+                backgroundColor: const Color(0xFFDBEAFE),
+                title: 'Science Topics',
+                subtitle: 'Manage topics',
+                customIcon: '🔬',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Science Topics - Coming soon!')),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.edit_document,
+                iconColor: const Color(0xFFEC4899),
+                backgroundColor: const Color(0xFFFCE7F3),
+                title: 'Create Quiz',
+                subtitle: 'New assessment',
+                customIcon: '📝',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Create Quiz - Coming soon!')),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildActionCard(
+                icon: Icons.emoji_events,
+                iconColor: const Color(0xFFF59E0B),
+                backgroundColor: const Color(0xFFFEF3C7),
+                title: 'Rewards',
+                subtitle: 'Manage badges',
+                customIcon: '🏆',
+                isHighlighted: true,
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Rewards - Coming soon!')),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required Color iconColor,
+    required Color backgroundColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    String? customIcon,
+    bool isHighlighted = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isHighlighted
+                ? const Color(0xFF1F2937)
+                : const Color(0xFFE5E7EB),
+            width: isHighlighted ? 2 : 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: customIcon != null
+                  ? Text(
+                      customIcon,
+                      style: const TextStyle(fontSize: 28),
+                    )
+                  : Icon(
+                      icon,
+                      color: iconColor,
+                      size: 28,
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2937),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

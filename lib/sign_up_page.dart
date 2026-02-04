@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -18,6 +19,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _rememberMe = false;
   bool _isPasswordVisible = false;
@@ -64,6 +66,11 @@ class _SignUpPageState extends State<SignUpPage> {
     return null;
   }
 
+  // ── Generate unique student ID like STU-1770132831 ──
+  String _generateStudentId() {
+    return 'STU-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
   Future<void> _handleSignUp() async {
     FocusScope.of(context).unfocus();
 
@@ -80,20 +87,36 @@ class _SignUpPageState extends State<SignUpPage> {
     });
 
     try {
-      // Create user with Firebase
+      // ── Step 1: Create user in Firebase Auth ──
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      // Update display name with first and last name
-      await userCredential.user?.updateDisplayName(
-        '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
-      );
+      // ── Step 2: Update display name ──
+      final fullName =
+          '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}';
+      await userCredential.user?.updateDisplayName(fullName);
+
+      // ── Step 3: Save to Firestore 'users' collection ──
+      //    This is what was MISSING before. The dashboard counts from here.
+      final studentId = _generateStudentId();
+
+      await _firestore
+          .collection('users')
+          .doc(userCredential.user!.uid) // document ID = Firebase Auth UID
+          .set({
+        'name': fullName,
+        'email': _emailController.text.trim(),
+        'role': 'student', // ← This is what the dashboard query filters on
+        'studentId': studentId, // ← Unique readable ID: STU-1770132831
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      print('✅ Student saved to Firestore! ID: $studentId');
 
       if (mounted) {
-        // Navigate to ClassSelectPage instead of DashboardPage
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const ClassSelectPage()),
           (route) => false,
@@ -124,12 +147,14 @@ class _SignUpPageState extends State<SignUpPage> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'An unexpected error occurred';
+        _errorMessage = 'An unexpected error occurred: $e';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -252,7 +277,6 @@ class _SignUpPageState extends State<SignUpPage> {
                     // FirstName and LastName Row
                     Row(
                       children: [
-                        // FirstName TextField
                         Expanded(
                           child: TextFormField(
                             controller: _firstNameController,
@@ -266,15 +290,13 @@ class _SignUpPageState extends State<SignUpPage> {
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
@@ -285,9 +307,8 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                               errorBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.red.shade400,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.red.shade400),
                               ),
                               focusedErrorBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
@@ -304,7 +325,6 @@ class _SignUpPageState extends State<SignUpPage> {
                           ),
                         ),
                         const SizedBox(width: 15),
-                        // LastName TextField
                         Expanded(
                           child: TextFormField(
                             controller: _lastNameController,
@@ -318,15 +338,13 @@ class _SignUpPageState extends State<SignUpPage> {
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
                               ),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade300,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.grey.shade300),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
@@ -337,9 +355,8 @@ class _SignUpPageState extends State<SignUpPage> {
                               ),
                               errorBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
-                                borderSide: BorderSide(
-                                  color: Colors.red.shade400,
-                                ),
+                                borderSide:
+                                    BorderSide(color: Colors.red.shade400),
                               ),
                               focusedErrorBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(15),
@@ -375,15 +392,11 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
@@ -394,9 +407,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                          ),
+                          borderSide: BorderSide(color: Colors.red.shade400),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
@@ -443,15 +454,11 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
@@ -462,9 +469,7 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                          ),
+                          borderSide: BorderSide(color: Colors.red.shade400),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),

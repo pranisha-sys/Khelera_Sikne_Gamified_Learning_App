@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'admin/admin_home_page.dart';
 import 'admin/admin_login_page.dart';
 import 'home_page.dart';
 
@@ -36,7 +37,8 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const SelectScreen(), // pick user or admin
         '/home': (context) => const HomePage(), // user app
-        '/admin': (context) => const AdminLoginPage(), // admin panel
+        '/admin': (context) => const AdminLoginPage(), // admin login
+        '/admin-home': (context) => const AdminHomePage(), // admin dashboard
       },
     );
   }

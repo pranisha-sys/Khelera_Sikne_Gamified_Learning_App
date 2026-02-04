@@ -1,6 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'admin/admin_home_page.dart';
 import 'classselect.dart';
 
 class LoginPage extends StatefulWidget {
@@ -15,6 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _rememberMe = false;
   bool _isPasswordVisible = false;
@@ -47,38 +50,74 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleLogin() async {
-    // Hide keyboard
     FocusScope.of(context).unfocus();
 
-    // Clear previous error
     setState(() {
       _errorMessage = null;
     });
 
-    // Validate form
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Sign in with Firebase
+      // ── Step 1: Firebase Auth login ──
       await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        // Navigate to ClassSelectPage on successful login
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const ClassSelectPage(),
-          ),
-        );
+      // ── Step 2: Check Firestore for user's role ──
+      final userId = _auth.currentUser!.uid;
+      final doc = await _firestore.collection('users').doc(userId).get();
+
+      if (doc.exists) {
+        final role = doc.data()!['role'] as String;
+        print('✅ Logged in. Role: $role');
+
+        if (mounted) {
+          if (role == 'student') {
+            // Student → goes to class selection
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+            );
+          } else if (role == 'admin' || role == 'teacher') {
+            // Admin or Teacher → goes to admin dashboard
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const AdminHomePage()),
+            );
+          } else {
+            // Unknown role, treat as student
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+            );
+          }
+        }
+      } else {
+        // User exists in Auth but NOT in Firestore
+        // This means they signed up before we added Firestore saving
+        // Save them as student now
+        await _firestore.collection('users').doc(userId).set({
+          'name': _auth.currentUser!.displayName ?? 'User',
+          'email': _emailController.text.trim(),
+          'role': 'student',
+          'studentId': 'STU-${DateTime.now().millisecondsSinceEpoch}',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
+        print('✅ Old user saved to Firestore as student');
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String errorMsg = 'An error occurred';
@@ -108,12 +147,13 @@ class _LoginPageState extends State<LoginPage> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'An unexpected error occurred';
+        _errorMessage = 'An unexpected error occurred: $e';
       });
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted)
+        setState(() {
+          _isLoading = false;
+        });
     }
   }
 
@@ -144,7 +184,6 @@ class _LoginPageState extends State<LoginPage> {
                     // Logo
                     GestureDetector(
                       onTap: () {
-                        // Navigate back to home page
                         Navigator.popUntil(context, (route) => route.isFirst);
                       },
                       child: Image.asset(
@@ -215,20 +254,14 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.error_outline,
-                              color: Colors.red.shade700,
-                              size: 20,
-                            ),
+                            Icon(Icons.error_outline,
+                                color: Colors.red.shade700, size: 20),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red.shade700,
-                                  fontSize: 14,
-                                ),
-                              ),
+                              child: Text(_errorMessage!,
+                                  style: TextStyle(
+                                      color: Colors.red.shade700,
+                                      fontSize: 14)),
                             ),
                           ],
                         ),
@@ -244,46 +277,32 @@ class _LoginPageState extends State<LoginPage> {
                         hintText: 'E-mail',
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(
-                          Icons.email_outlined,
-                          color: Colors.cyan.shade400,
-                        ),
+                        prefixIcon: Icon(Icons.email_outlined,
+                            color: Colors.cyan.shade400),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.cyan.shade400,
-                            width: 2,
-                          ),
+                          borderSide:
+                              BorderSide(color: Colors.cyan.shade400, width: 2),
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                          ),
+                          borderSide: BorderSide(color: Colors.red.shade400),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                            width: 2,
-                          ),
+                          borderSide:
+                              BorderSide(color: Colors.red.shade400, width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
+                            horizontal: 20, vertical: 16),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -299,10 +318,8 @@ class _LoginPageState extends State<LoginPage> {
                         hintText: 'Password',
                         filled: true,
                         fillColor: Colors.white,
-                        prefixIcon: Icon(
-                          Icons.lock_outline,
-                          color: Colors.cyan.shade400,
-                        ),
+                        prefixIcon: Icon(Icons.lock_outline,
+                            color: Colors.cyan.shade400),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordVisible
@@ -318,40 +335,28 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.cyan.shade400,
-                            width: 2,
-                          ),
+                          borderSide:
+                              BorderSide(color: Colors.cyan.shade400, width: 2),
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                          ),
+                          borderSide: BorderSide(color: Colors.red.shade400),
                         ),
                         focusedErrorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide(
-                            color: Colors.red.shade400,
-                            width: 2,
-                          ),
+                          borderSide:
+                              BorderSide(color: Colors.red.shade400, width: 2),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
+                            horizontal: 20, vertical: 16),
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -373,34 +378,25 @@ class _LoginPageState extends State<LoginPage> {
                                   });
                                 },
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                                    borderRadius: BorderRadius.circular(4)),
                                 activeColor: Colors.cyan,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Remember me',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.black87,
-                              ),
-                            ),
+                            const Text('Remember me',
+                                style: TextStyle(
+                                    fontSize: 15, color: Colors.black87)),
                           ],
                         ),
                         TextButton(
                           onPressed: () {
                             debugPrint('Forget Password pressed');
-                            // TODO: Navigate to forget password screen
                           },
-                          child: const Text(
-                            'Forget Password?',
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.black87,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                          child: const Text('Forget Password?',
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w500)),
                         ),
                       ],
                     ),
@@ -417,8 +413,7 @@ class _LoginPageState extends State<LoginPage> {
                           foregroundColor: Colors.white,
                           elevation: 3,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
+                              borderRadius: BorderRadius.circular(30)),
                           disabledBackgroundColor: Colors.grey.shade400,
                         ),
                         child: _isLoading
@@ -428,17 +423,12 @@ class _LoginPageState extends State<LoginPage> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
+                                      Colors.white),
                                 ),
                               )
-                            : const Text(
-                                'Log in',
+                            : const Text('Log in',
                                 style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                                    fontSize: 22, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -448,9 +438,7 @@ class _LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                       text: TextSpan(
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black87,
-                        ),
+                            fontSize: 12, color: Colors.black87),
                         children: [
                           const TextSpan(
                               text: 'By signing up, you agree with our '),
