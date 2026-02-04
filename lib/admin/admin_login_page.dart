@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'activity_system.dart'; // 🔥 ADD THIS IMPORT
 import 'admin_home_page.dart';
 
 // ══════════════════════════════════════════════
@@ -28,6 +29,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ActivityService _activityService = ActivityService(); // 🔥 ADD THIS
 
   String _selectedRole = 'Admin';
   bool _isLoading = false;
@@ -82,6 +84,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return null;
     }
   }
+
+  // ❌ REMOVE OLD _logActivity method - we'll use ActivityService instead
 
   // ── SIGN UP ──
   Future<void> _handleSignUp() async {
@@ -162,16 +166,31 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       // Step 2: Save to Firestore
       final uniqueId = _generateUniqueId();
       final role = _selectedRole.toLowerCase();
+      final userId = userCredential.user!.uid;
 
-      await _firestore.collection('users').doc(userCredential.user!.uid).set({
-        'name': _nameController.text.trim(),
+      await _firestore.collection('users').doc(userId).set({
+        'name': _nameController.text.trim(), // 🔥 IMPORTANT: Save name!
         'email': _emailController.text.trim().toLowerCase(),
         'role': role,
         'uniqueId': uniqueId,
         'createdAt': FieldValue.serverTimestamp(),
+        'isActive': true, // 🔥 ADD THIS
       });
 
-      // Step 3: Go to Admin Dashboard
+      // 🔥 Step 3: Log signup activity using ActivityService
+      if (_selectedRole == 'Admin') {
+        await _activityService.logActivity(
+          type: ActivityType.teacherSignup, // Admin uses teacher type
+          userId: userId,
+          // Name will be automatically fetched from Firestore!
+        );
+      } else {
+        await _activityService.logTeacherSignup(userId);
+      }
+
+      print('✅ ${_selectedRole} registered and activity logged!');
+
+      // Step 4: Go to Admin Dashboard
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -269,12 +288,27 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       }
 
       // Step 1: Firebase Auth login
-      await _auth.signInWithEmailAndPassword(
+      final userCredential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 
-      // Step 2: Go to Admin Dashboard
+      // 🔥 Step 2: Log login activity using ActivityService
+      final userId = userCredential.user!.uid;
+
+      if (_selectedRole == 'Admin') {
+        await _activityService.logActivity(
+          type: ActivityType.teacherLogin, // Admin uses teacher type
+          userId: userId,
+          // Name will be automatically fetched from Firestore!
+        );
+      } else {
+        await _activityService.logTeacherLogin(userId);
+      }
+
+      print('✅ ${_selectedRole} logged in and activity logged!');
+
+      // Step 3: Go to Admin Dashboard
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,

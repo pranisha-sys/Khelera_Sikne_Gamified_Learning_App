@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'activity_system.dart'; // 🎯 NEW: Import activity system
+import 'developer_tools_page.dart';
+import 'user_management_page.dart';
+
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({Key? key}) : super(key: key);
 
@@ -22,14 +26,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _totalQuizzes = 0;
   bool _isLoading = true;
 
-  // Recent activities list
-  List<Map<String, dynamic>> _recentActivities = [];
-
   @override
   void initState() {
     super.initState();
     _fetchDashboardData();
-    _fetchRecentActivities();
   }
 
   // Fetch all dashboard data from Firebase
@@ -82,164 +82,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
     }
   }
 
-  // Fetch recent activities from Firebase
-  Future<void> _fetchRecentActivities() async {
-    try {
-      List<Map<String, dynamic>> activities = [];
-
-      // Fetch recent teacher registrations
-      final teachersSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'teacher')
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .get();
-
-      for (var doc in teachersSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'type': 'teacher_registered',
-          'title': 'New teacher registered',
-          'subtitle': data['name'] ?? 'Unknown',
-          'timestamp': data['createdAt'] ?? Timestamp.now(),
-          'icon': Icons.check_circle,
-          'iconColor': const Color(0xFF10B981),
-          'iconBgColor': const Color(0xFFD1FAE5),
-        });
-      }
-
-      // Fetch recent quizzes created by teachers
-      final quizzesSnapshot = await FirebaseFirestore.instance
-          .collection('quizzes')
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .get();
-
-      for (var doc in quizzesSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'type': 'quiz_created',
-          'title': 'Quiz created by teacher',
-          'subtitle': data['title'] ?? 'Quiz',
-          'timestamp': data['createdAt'] ?? Timestamp.now(),
-          'icon': Icons.quiz,
-          'iconColor': const Color(0xFF3B82F6),
-          'iconBgColor': const Color(0xFFDBEAFE),
-        });
-      }
-
-      // Fetch recent quiz completions
-      final completionsSnapshot = await FirebaseFirestore.instance
-          .collection('quiz_results')
-          .orderBy('completedAt', descending: true)
-          .limit(5)
-          .get();
-
-      for (var doc in completionsSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'type': 'quiz_completed',
-          'title': 'Quiz completed',
-          'subtitle': '${data['studentCount'] ?? 1} students',
-          'timestamp': data['completedAt'] ?? Timestamp.now(),
-          'icon': Icons.bar_chart,
-          'iconColor': const Color(0xFF3B82F6),
-          'iconBgColor': const Color(0xFFDBEAFE),
-        });
-      }
-
-      // Fetch recent topic updates by teachers
-      final topicsSnapshot = await FirebaseFirestore.instance
-          .collection('Matter_subtopics')
-          .orderBy('updatedAt', descending: true)
-          .limit(5)
-          .get();
-
-      for (var doc in topicsSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'type': 'topic_updated',
-          'title': 'Science topic updated',
-          'subtitle': data['name'] ?? 'Topic',
-          'timestamp': data['updatedAt'] ?? Timestamp.now(),
-          'icon': Icons.science,
-          'iconColor': const Color(0xFF8B5CF6),
-          'iconBgColor': const Color(0xFFEDE9FE),
-        });
-      }
-
-      // Fetch recent badges awarded
-      final badgesSnapshot = await FirebaseFirestore.instance
-          .collection('badges_awarded')
-          .orderBy('awardedAt', descending: true)
-          .limit(5)
-          .get();
-
-      for (var doc in badgesSnapshot.docs) {
-        final data = doc.data();
-        activities.add({
-          'type': 'badge_awarded',
-          'title': 'New badge awarded',
-          'subtitle': data['badgeName'] ?? 'Badge',
-          'timestamp': data['awardedAt'] ?? Timestamp.now(),
-          'icon': Icons.emoji_events,
-          'iconColor': const Color(0xFFF59E0B),
-          'iconBgColor': const Color(0xFFFEF3C7),
-        });
-      }
-
-      // Sort all activities by timestamp
-      activities.sort((a, b) {
-        Timestamp timeA = a['timestamp'] as Timestamp;
-        Timestamp timeB = b['timestamp'] as Timestamp;
-        return timeB.compareTo(timeA);
-      });
-
-      // Keep only the 10 most recent activities
-      setState(() {
-        _recentActivities = activities.take(10).toList();
-      });
-
-      print("✅ Fetched ${_recentActivities.length} recent activities");
-    } catch (e) {
-      print("❌ Error fetching recent activities: $e");
-
-      // Set default activities if there's an error
-      setState(() {
-        _recentActivities = [
-          {
-            'type': 'info',
-            'title': 'No recent activities',
-            'subtitle': 'Activities will appear here',
-            'timestamp': Timestamp.now(),
-            'icon': Icons.info_outline,
-            'iconColor': const Color(0xFF6B7280),
-            'iconBgColor': const Color(0xFFF3F4F6),
-          }
-        ];
-      });
-    }
-  }
-
-  // Helper function to format timestamp to relative time
-  String _getRelativeTime(Timestamp timestamp) {
-    final now = DateTime.now();
-    final dateTime = timestamp.toDate();
-    final difference = now.difference(dateTime);
-
-    if (difference.inSeconds < 60) {
-      return 'Just now';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} min ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
-    } else {
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
-    }
-  }
-
   void _onBottomNavTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -247,10 +89,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
     switch (index) {
       case 0:
+        // Already on dashboard
         break;
       case 1:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Users page - Coming soon!')),
+        // Navigate to User Management
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const UserManagementPage(),
+          ),
         );
         break;
       case 2:
@@ -264,8 +111,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
         );
         break;
       case 4:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Settings page - Coming soon!')),
+        // Navigate to Developer Tools / Settings
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeveloperToolsPage(),
+          ),
         );
         break;
     }
@@ -336,12 +187,15 @@ class _AdminHomePageState extends State<AdminHomePage> {
               },
             ),
             _buildProfileMenuItem(
-              icon: Icons.settings_outlined,
-              title: 'Account Settings',
+              icon: Icons.build_outlined,
+              title: 'Developer Tools',
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Settings page - Coming soon!')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DeveloperToolsPage(),
+                  ),
                 );
               },
             ),
@@ -471,33 +325,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
                     const SizedBox(height: 32),
 
-                    // Recent Activity Section
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Recent Activity',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1F2937),
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.refresh, size: 20),
-                                onPressed: _fetchRecentActivities,
-                                color: const Color(0xFF0EA5E9),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          _buildRecentActivity(),
-                        ],
+                    // 🎯 NEW: Recent Activity using Activity System
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: RecentActivityWidget(
+                        maxActivities: 10,
+                        showFilters: true,
                       ),
                     ),
 
@@ -557,9 +390,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Manage your science platform',
+              'Manage your Matter platform',
               style: TextStyle(
-                fontSize: 15,
+                fontSize: 20,
                 color: Colors.white70,
               ),
             ),
@@ -589,7 +422,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   _buildScrollableStatCard(
                     icon: '🔬',
                     count: _totalTopics.toString(),
-                    label: 'Science Topics',
+                    label: 'Matter Subtopics',
                     color: const Color(0xFF0EA5E9),
                   ),
                   const SizedBox(width: 10),
@@ -673,9 +506,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 title: 'Manage Users',
                 subtitle: 'Add or edit users',
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Manage Users - Coming soon!')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const UserManagementPage(),
+                    ),
                   );
                 },
               ),
@@ -762,7 +597,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
               icon,
               style: const TextStyle(fontSize: 40),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               title,
               style: const TextStyle(
@@ -775,139 +610,12 @@ class _AdminHomePageState extends State<AdminHomePage> {
             Text(
               subtitle,
               style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF6B7280),
+                fontSize: 16,
+                color: Color(0xFF0D0E12),
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildRecentActivity() {
-    if (_recentActivities.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(40),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: const Color(0xFFE5E7EB),
-            width: 1,
-          ),
-        ),
-        child: const Center(
-          child: Column(
-            children: [
-              Icon(
-                Icons.inbox_outlined,
-                size: 48,
-                color: Color(0xFF9CA3AF),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'No recent activities',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE5E7EB),
-          width: 1,
-        ),
-      ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: _recentActivities.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final activity = _recentActivities[index];
-          return _buildActivityItem(
-            icon: activity['icon'],
-            iconColor: activity['iconColor'],
-            iconBgColor: activity['iconBgColor'],
-            title: activity['title'],
-            subtitle: activity['subtitle'],
-            time: _getRelativeTime(activity['timestamp']),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildActivityItem({
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBgColor,
-    required String title,
-    required String subtitle,
-    required String time,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF6B7280),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Color(0xFF9CA3AF),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -955,8 +663,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 isSelected: _selectedIndex == 3,
               ),
               _buildNavItem(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
+                icon: Icons.build_outlined,
+                label: 'Tools',
                 index: 4,
                 isSelected: _selectedIndex == 4,
               ),

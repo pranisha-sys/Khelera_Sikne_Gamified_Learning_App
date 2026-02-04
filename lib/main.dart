@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'admin/admin_home_page.dart';
 import 'admin/admin_login_page.dart';
+import 'admin/user_management_page.dart';
 import 'home_page.dart';
 
 void main() async {
@@ -39,6 +40,8 @@ class MyApp extends StatelessWidget {
         '/home': (context) => const HomePage(), // user app
         '/admin': (context) => const AdminLoginPage(), // admin login
         '/admin-home': (context) => const AdminHomePage(), // admin dashboard
+        '/admin-users': (context) =>
+            const UserManagementPage(), // user management
       },
     );
   }
