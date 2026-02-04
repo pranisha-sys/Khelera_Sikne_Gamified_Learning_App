@@ -49,9 +49,16 @@ class _SignUpPageState extends State<SignUpPage> {
     if (value == null || value.isEmpty) {
       return 'Please enter your email';
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(value)) {
-      return 'Please enter a valid email';
+
+    // ✅ NEW: Check if it's a Gmail account
+    final trimmedEmail = value.trim().toLowerCase();
+    if (!trimmedEmail.endsWith('@gmail.com')) {
+      return 'Only Gmail accounts (@gmail.com) are allowed';
+    }
+
+    final emailRegex = RegExp(r'^[\w-\.]+@gmail\.com$');
+    if (!emailRegex.hasMatch(trimmedEmail)) {
+      return 'Please enter a valid Gmail address';
     }
     return null;
   }
@@ -71,6 +78,25 @@ class _SignUpPageState extends State<SignUpPage> {
     return 'STU-${DateTime.now().millisecondsSinceEpoch}';
   }
 
+  // ── Check if email exists in Firestore ──
+  Future<Map<String, dynamic>?> _checkEmailExists(String email) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
+      }
+      return null;
+    } catch (e) {
+      print('Error checking email: $e');
+      return null;
+    }
+  }
+
   Future<void> _handleSignUp() async {
     FocusScope.of(context).unfocus();
 
@@ -87,10 +113,23 @@ class _SignUpPageState extends State<SignUpPage> {
     });
 
     try {
+      // Check if email already exists in Firestore
+      final existingUser =
+          await _checkEmailExists(_emailController.text.trim());
+
+      if (existingUser != null) {
+        setState(() {
+          _errorMessage =
+              'This Gmail account is already registered as "${existingUser['role']}". Please login instead.';
+          _isLoading = false;
+        });
+        return;
+      }
+
       // ── Step 1: Create user in Firebase Auth ──
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 
@@ -100,17 +139,13 @@ class _SignUpPageState extends State<SignUpPage> {
       await userCredential.user?.updateDisplayName(fullName);
 
       // ── Step 3: Save to Firestore 'users' collection ──
-      //    This is what was MISSING before. The dashboard counts from here.
       final studentId = _generateStudentId();
 
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid) // document ID = Firebase Auth UID
-          .set({
+      await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'name': fullName,
-        'email': _emailController.text.trim(),
-        'role': 'student', // ← This is what the dashboard query filters on
-        'studentId': studentId, // ← Unique readable ID: STU-1770132831
+        'email': _emailController.text.trim().toLowerCase(),
+        'role': 'student',
+        'studentId': studentId,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -127,10 +162,10 @@ class _SignUpPageState extends State<SignUpPage> {
 
       switch (e.code) {
         case 'email-already-in-use':
-          errorMsg = 'This email is already registered';
+          errorMsg = 'This Gmail account is already registered';
           break;
         case 'invalid-email':
-          errorMsg = 'Invalid email address';
+          errorMsg = 'Invalid Gmail address format';
           break;
         case 'operation-not-allowed':
           errorMsg = 'Email/password accounts are not enabled';
@@ -182,7 +217,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   children: [
                     const SizedBox(height: 40),
 
-                    // Logo - Click to go to Home Page
+                    // Logo
                     GestureDetector(
                       onTap: () {
                         Navigator.popUntil(context, (route) => route.isFirst);
@@ -241,7 +276,35 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 30),
+                    const SizedBox(height: 20),
+
+                    // ✅ NEW: Gmail Notice
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              color: Colors.blue.shade700, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Only Gmail accounts (@gmail.com) are allowed for signup',
+                              style: TextStyle(
+                                color: Colors.blue.shade700,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
 
                     // Error Message
                     if (_errorMessage != null)
@@ -383,7 +446,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       textInputAction: TextInputAction.next,
                       validator: _validateEmail,
                       decoration: InputDecoration(
-                        hintText: 'E-mail',
+                        hintText: 'Gmail (yourname@gmail.com)',
                         filled: true,
                         fillColor: Colors.white,
                         prefixIcon: Icon(

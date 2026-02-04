@@ -58,6 +58,31 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     return false;
   }
 
+  // ── NEW: Validate Gmail only ──
+  bool _isValidGmail(String email) {
+    final trimmedEmail = email.trim().toLowerCase();
+    return trimmedEmail.endsWith('@gmail.com');
+  }
+
+  // ── Check if email exists in Firestore ──
+  Future<Map<String, dynamic>?> _checkEmailExists(String email) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email.trim().toLowerCase())
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        return querySnapshot.docs.first.data();
+      }
+      return null;
+    } catch (e) {
+      print('Error checking email: $e');
+      return null;
+    }
+  }
+
   // ── SIGN UP ──
   Future<void> _handleSignUp() async {
     setState(() {
@@ -76,6 +101,16 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       });
       return;
     }
+
+    // ✅ NEW: Check if email is Gmail
+    if (!_isValidGmail(_emailController.text)) {
+      setState(() {
+        _errorMessage =
+            '❌ Only Gmail accounts (@gmail.com) are allowed! Please use a valid Gmail address.';
+      });
+      return;
+    }
+
     if (_passwordController.text.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your password';
@@ -103,10 +138,23 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     });
 
     try {
+      // Check if email already exists in Firestore
+      final existingUser =
+          await _checkEmailExists(_emailController.text.trim());
+
+      if (existingUser != null) {
+        setState(() {
+          _errorMessage =
+              'This Gmail account is already registered as "${existingUser['role']}". Please login instead.';
+          _isLoading = false;
+        });
+        return;
+      }
+
       // Step 1: Create Firebase Auth account
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
@@ -117,13 +165,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
+        'email': _emailController.text.trim().toLowerCase(),
         'role': role,
         'uniqueId': uniqueId,
         'createdAt': FieldValue.serverTimestamp(),
       });
-
-      print('✅ $_selectedRole registered! UniqueId: $uniqueId');
 
       // Step 3: Go to Admin Dashboard
       if (mounted) {
@@ -137,13 +183,14 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       String errorMsg = 'Sign up failed';
       switch (e.code) {
         case 'email-already-in-use':
-          errorMsg = 'This email is already registered. Try logging in.';
+          errorMsg =
+              'This Gmail account is already registered. Try logging in.';
           break;
         case 'weak-password':
           errorMsg = 'Password is too weak. Use at least 6 characters.';
           break;
         case 'invalid-email':
-          errorMsg = 'Invalid email address.';
+          errorMsg = 'Invalid Gmail address format.';
           break;
         default:
           errorMsg = e.message ?? 'Sign up failed';
@@ -176,6 +223,15 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       });
       return;
     }
+
+    // ✅ NEW: Check if email is Gmail
+    if (!_isValidGmail(_emailController.text)) {
+      setState(() {
+        _errorMessage = '❌ Only Gmail accounts (@gmail.com) are allowed!';
+      });
+      return;
+    }
+
     if (_passwordController.text.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter your password';
@@ -188,40 +244,37 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     });
 
     try {
+      // First check if user exists in Firestore
+      final existingUser =
+          await _checkEmailExists(_emailController.text.trim());
+
+      if (existingUser == null) {
+        setState(() {
+          _errorMessage =
+              'No account found with this Gmail address. Please sign up first.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Check if the role matches
+      final storedRole = existingUser['role'] as String;
+      if (storedRole != _selectedRole.toLowerCase()) {
+        setState(() {
+          _errorMessage =
+              'This Gmail is registered as "$storedRole", not "${_selectedRole.toLowerCase()}". Please select the correct role or use the correct login page.';
+          _isLoading = false;
+        });
+        return;
+      }
+
       // Step 1: Firebase Auth login
       await _auth.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 
-      // Step 2: Check Firestore - confirm role
-      final userId = _auth.currentUser!.uid;
-      final doc = await _firestore.collection('users').doc(userId).get();
-
-      if (!doc.exists) {
-        await _auth.signOut();
-        setState(() {
-          _errorMessage =
-              'This account is not registered as $_selectedRole. Please sign up first.';
-        });
-        return;
-      }
-
-      final userData = doc.data()!;
-      final storedRole = userData['role'] as String;
-
-      if (storedRole != _selectedRole.toLowerCase()) {
-        await _auth.signOut();
-        setState(() {
-          _errorMessage =
-              'This account is "$storedRole", not "${_selectedRole.toLowerCase()}". Select the correct role.';
-        });
-        return;
-      }
-
-      print('✅ $_selectedRole logged in! UniqueId: ${userData['uniqueId']}');
-
-      // Step 3: Go to Admin Dashboard
+      // Step 2: Go to Admin Dashboard
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -233,13 +286,13 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       String errorMsg = 'Login failed';
       switch (e.code) {
         case 'user-not-found':
-          errorMsg = 'No account found. Please sign up first.';
+          errorMsg = 'No account found with this Gmail. Please sign up first.';
           break;
         case 'wrong-password':
           errorMsg = 'Incorrect password.';
           break;
         case 'invalid-credential':
-          errorMsg = 'Invalid email or password.';
+          errorMsg = 'Invalid Gmail or password.';
           break;
         default:
           errorMsg = e.message ?? 'Login failed';
@@ -264,7 +317,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
-      // ── ONE SingleChildScrollView handles ALL scrolling ──
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
         child: Padding(
@@ -337,6 +389,34 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                               fontSize: 16, color: Color(0xFF6B7280)),
                         ),
                         const SizedBox(height: 24),
+
+                        // ✅ NEW: Gmail Notice
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 20),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.info_outline,
+                                  color: Colors.blue.shade700, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Only Gmail accounts (@gmail.com) are allowed',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade700,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
 
                         // ── Role Selection Label ──
                         const Text(
@@ -419,7 +499,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
                         // ── Email Field ──
                         const Text(
-                          'Email',
+                          'Gmail Address',
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -428,7 +508,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _emailController,
-                          hint: 'Enter your email',
+                          hint: 'yourname@gmail.com',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                         ),
@@ -572,7 +652,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     '© 2026 Khelera Sikne. All rights reserved.',
                     style: TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
                   ),
-                  const SizedBox(height: 32), // bottom breathing room
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
