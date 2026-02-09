@@ -2,20 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'activity_system.dart'; // 🔥 ADD THIS IMPORT
+import '../teacher/teacher_home_page.dart';
+import 'activity_system.dart';
 import 'admin_home_page.dart';
 
-// ══════════════════════════════════════════════
-//  SECRET CODES — only YOU know these!
-//  Admin code:   ADMIN@2026
-//  Teacher code: TEACHER@2026
-//  Change these before releasing the app.
-// ══════════════════════════════════════════════
 const String adminCode = 'ADMIN@2026';
 const String teacherCode = 'TEACHER@2026';
 
 class AdminLoginPage extends StatefulWidget {
-  const AdminLoginPage({Key? key}) : super(key: key);
+  const AdminLoginPage({super.key});
 
   @override
   State<AdminLoginPage> createState() => _AdminLoginPageState();
@@ -29,7 +24,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ActivityService _activityService = ActivityService(); // 🔥 ADD THIS
+  final ActivityService _activityService = ActivityService();
 
   String _selectedRole = 'Admin';
   bool _isLoading = false;
@@ -46,13 +41,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     super.dispose();
   }
 
-  // ── Generate unique ID: ADM-1770132831 or TCH-1770132831 ──
   String _generateUniqueId() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return _selectedRole == 'Admin' ? 'ADM-$timestamp' : 'TCH-$timestamp';
   }
 
-  // ── Validate secret code ──
   bool _validateCode() {
     final code = _codeController.text.trim();
     if (_selectedRole == 'Admin' && code == adminCode) return true;
@@ -60,13 +53,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     return false;
   }
 
-  // ── NEW: Validate Gmail only ──
   bool _isValidGmail(String email) {
     final trimmedEmail = email.trim().toLowerCase();
     return trimmedEmail.endsWith('@gmail.com');
   }
 
-  // ── Check if email exists in Firestore ──
   Future<Map<String, dynamic>?> _checkEmailExists(String email) async {
     try {
       final querySnapshot = await _firestore
@@ -80,14 +71,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       }
       return null;
     } catch (e) {
-      print('Error checking email: $e');
+      debugPrint('Error checking email: $e');
       return null;
     }
   }
 
-  // ❌ REMOVE OLD _logActivity method - we'll use ActivityService instead
-
-  // ── SIGN UP ──
   Future<void> _handleSignUp() async {
     setState(() {
       _errorMessage = null;
@@ -106,7 +94,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // ✅ NEW: Check if email is Gmail
     if (!_isValidGmail(_emailController.text)) {
       setState(() {
         _errorMessage =
@@ -128,7 +115,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // Check code BEFORE creating account
     if (!_validateCode()) {
       setState(() {
         _errorMessage =
@@ -142,7 +128,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     });
 
     try {
-      // Check if email already exists in Firestore
       final existingUser =
           await _checkEmailExists(_emailController.text.trim());
 
@@ -155,7 +140,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         return;
       }
 
-      // Step 1: Create Firebase Auth account
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim().toLowerCase(),
@@ -163,40 +147,44 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       );
       await userCredential.user?.updateDisplayName(_nameController.text.trim());
 
-      // Step 2: Save to Firestore
       final uniqueId = _generateUniqueId();
       final role = _selectedRole.toLowerCase();
       final userId = userCredential.user!.uid;
 
       await _firestore.collection('users').doc(userId).set({
-        'name': _nameController.text.trim(), // 🔥 IMPORTANT: Save name!
+        'name': _nameController.text.trim(),
         'email': _emailController.text.trim().toLowerCase(),
         'role': role,
         'uniqueId': uniqueId,
         'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true, // 🔥 ADD THIS
+        'isActive': true,
       });
 
-      // 🔥 Step 3: Log signup activity using ActivityService
       if (_selectedRole == 'Admin') {
         await _activityService.logActivity(
-          type: ActivityType.teacherSignup, // Admin uses teacher type
+          type: ActivityType.teacherSignup,
           userId: userId,
-          // Name will be automatically fetched from Firestore!
         );
       } else {
         await _activityService.logTeacherSignup(userId);
       }
 
-      print('✅ ${_selectedRole} registered and activity logged!');
+      debugPrint('✅ $_selectedRole registered and activity logged!');
 
-      // Step 4: Go to Admin Dashboard
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminHomePage()),
-          (route) => false,
-        );
+        if (_selectedRole == 'Admin') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminHomePage()),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const TeacherHomePage()),
+            (route) => false,
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String errorMsg = 'Sign up failed';
@@ -230,7 +218,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     }
   }
 
-  // ── LOGIN ──
   Future<void> _handleLogin() async {
     setState(() {
       _errorMessage = null;
@@ -243,7 +230,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // ✅ NEW: Check if email is Gmail
     if (!_isValidGmail(_emailController.text)) {
       setState(() {
         _errorMessage = '❌ Only Gmail accounts (@gmail.com) are allowed!';
@@ -263,7 +249,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     });
 
     try {
-      // First check if user exists in Firestore
       final existingUser =
           await _checkEmailExists(_emailController.text.trim());
 
@@ -276,7 +261,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         return;
       }
 
-      // Check if the role matches
       final storedRole = existingUser['role'] as String;
       if (storedRole != _selectedRole.toLowerCase()) {
         setState(() {
@@ -287,34 +271,38 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         return;
       }
 
-      // Step 1: Firebase Auth login
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
 
-      // 🔥 Step 2: Log login activity using ActivityService
       final userId = userCredential.user!.uid;
 
       if (_selectedRole == 'Admin') {
         await _activityService.logActivity(
-          type: ActivityType.teacherLogin, // Admin uses teacher type
+          type: ActivityType.teacherLogin,
           userId: userId,
-          // Name will be automatically fetched from Firestore!
         );
       } else {
         await _activityService.logTeacherLogin(userId);
       }
 
-      print('✅ ${_selectedRole} logged in and activity logged!');
+      debugPrint('✅ $_selectedRole logged in and activity logged!');
 
-      // Step 3: Go to Admin Dashboard
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminHomePage()),
-          (route) => false,
-        );
+        if (_selectedRole == 'Admin') {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminHomePage()),
+            (route) => false,
+          );
+        } else {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const TeacherHomePage()),
+            (route) => false,
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       String errorMsg = 'Login failed';
@@ -362,7 +350,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ── Logo ──
                   SizedBox(
                     width: 140,
                     height: 140,
@@ -376,8 +363,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     ),
                   ),
                   const SizedBox(height: 4),
-
-                  // ── White Card ──
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(30),
@@ -386,7 +371,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
+                          color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 30,
                           offset: const Offset(0, 10),
                         ),
@@ -395,7 +380,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ── Title ──
                         Row(
                           children: [
                             Text(
@@ -423,8 +407,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                               fontSize: 16, color: Color(0xFF6B7280)),
                         ),
                         const SizedBox(height: 24),
-
-                        // ✅ NEW: Gmail Notice
                         Container(
                           padding: const EdgeInsets.all(12),
                           margin: const EdgeInsets.only(bottom: 20),
@@ -451,8 +433,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                             ],
                           ),
                         ),
-
-                        // ── Role Selection Label ──
                         const Text(
                           'Select Your Role',
                           style: TextStyle(
@@ -462,8 +442,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ),
                         ),
                         const SizedBox(height: 12),
-
-                        // ── Role Buttons ──
                         Row(
                           children: [
                             Expanded(
@@ -484,8 +462,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ],
                         ),
                         const SizedBox(height: 24),
-
-                        // ── Error Message ──
                         if (_errorMessage != null)
                           Container(
                             padding: const EdgeInsets.all(12),
@@ -512,8 +488,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                               ],
                             ),
                           ),
-
-                        // ── Name Field (sign up only) ──
                         if (_isSignUpMode) ...[
                           const Text(
                             'Name',
@@ -530,8 +504,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ),
                           const SizedBox(height: 20),
                         ],
-
-                        // ── Email Field ──
                         const Text(
                           'Gmail Address',
                           style: TextStyle(
@@ -547,8 +519,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 20),
-
-                        // ── Password Field ──
                         const Text(
                           'Password',
                           style: TextStyle(
@@ -575,8 +545,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // ── Secret Code Field (sign up only) ──
                         if (_isSignUpMode) ...[
                           Text(
                             '$_selectedRole Code',
@@ -600,8 +568,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ),
                           const SizedBox(height: 16),
                         ],
-
-                        // ── Submit Button ──
                         SizedBox(
                           width: double.infinity,
                           height: 52,
@@ -639,8 +605,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // ── Toggle Login / Sign Up ──
                         Center(
                           child: TextButton(
                             onPressed: () {
@@ -660,8 +624,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                             ),
                           ),
                         ),
-
-                        // ── Forgot Password (login only) ──
                         if (!_isSignUpMode)
                           Center(
                             child: TextButton(
@@ -679,8 +641,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                       ],
                     ),
                   ),
-
-                  // ── Footer ──
                   const SizedBox(height: 28),
                   const Text(
                     '© 2026 Khelera Sikne. All rights reserved.',
@@ -696,7 +656,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     );
   }
 
-  // ── TextField Builder ──
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,
@@ -735,7 +694,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     );
   }
 
-  // ── Role Button Builder ──
   Widget _buildRoleButton(String role, IconData icon, bool isSelected) {
     return InkWell(
       onTap: () => setState(() {

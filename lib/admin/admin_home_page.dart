@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import 'activity_system.dart'; // 🎯 NEW: Import activity system
+import 'activity_system.dart';
+import 'content_management.dart';
 import 'developer_tools_page.dart';
 import 'user_management_page.dart';
 
@@ -62,11 +63,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         _totalQuizzes = quizzesSnapshot.docs.length;
         _isLoading = false;
       });
-
-      print(
-          "✅ Students: $_totalStudents, Teachers: $_totalTeachers, Topics: $_totalTopics, Quizzes: $_totalQuizzes");
     } catch (e) {
-      print("❌ Error fetching dashboard data: $e");
       setState(() {
         _isLoading = false;
       });
@@ -98,17 +95,22 @@ class _AdminHomePageState extends State<AdminHomePage> {
           MaterialPageRoute(
             builder: (context) => const UserManagementPage(),
           ),
-        );
+        ).then((_) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+        });
         break;
       case 2:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Content page - Coming soon!')),
-        );
+        // Content page - shown inline
         break;
       case 3:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Analytics page - Coming soon!')),
         );
+        setState(() {
+          _selectedIndex = 0;
+        });
         break;
       case 4:
         // Navigate to Developer Tools / Settings
@@ -117,7 +119,11 @@ class _AdminHomePageState extends State<AdminHomePage> {
           MaterialPageRoute(
             builder: (context) => const DeveloperToolsPage(),
           ),
-        );
+        ).then((_) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+        });
         break;
     }
   }
@@ -285,6 +291,38 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // If Content tab (index 2) is selected, show ContentManagementPage
+    if (_selectedIndex == 2) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF9FAFB),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF0EA5E9),
+          title: const Text(
+            'Content Management',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: () {
+                setState(() {
+                  _fetchDashboardData();
+                });
+              },
+            ),
+          ],
+        ),
+        body: const ContentManagementPage(),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      );
+    }
+
+    // Otherwise show dashboard
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
@@ -325,7 +363,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
                     const SizedBox(height: 32),
 
-                    // 🎯 NEW: Recent Activity using Activity System
+                    // Recent Activity using Activity System
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20),
                       child: RecentActivityWidget(
@@ -376,7 +414,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -455,7 +493,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.15),
+            color: Colors.black.withValues(alpha: 0.15),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -522,10 +560,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 title: 'Matter Topics',
                 subtitle: 'Manage sub topics',
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Science Topics - Coming soon!')),
-                  );
+                  _onBottomNavTapped(2);
                 },
               ),
             ),
@@ -584,7 +619,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -626,7 +661,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -687,7 +722,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF0EA5E9).withOpacity(0.1)
+              ? const Color(0xFF0EA5E9).withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),

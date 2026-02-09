@@ -1,6 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+// Import necessary pages for navigation
+import 'add_teacher_page.dart';
+import 'content_management.dart';
+import 'developer_tools_page.dart';
+import 'manage_teacher_grades_page.dart';
+
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({Key? key}) : super(key: key);
 
@@ -11,18 +17,58 @@ class UserManagementPage extends StatefulWidget {
 class _UserManagementPageState extends State<UserManagementPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
-
+  int _selectedIndex = 1; // Users tab selected
   String _searchQuery = '';
-  String _selectedRoleFilter = 'All';
-  bool _isLoading = false;
-
-  // Role filter options
+  String _selectedRoleFilter = 'All'; // Role filter options
   final List<String> _roleFilters = ['All', 'Student', 'Teacher', 'Admin'];
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onNavBarTap(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+
+    switch (index) {
+      case 0:
+        // Navigate back to Dashboard
+        Navigator.pop(context);
+        break;
+      case 1:
+        // Already on Users - just update the view
+        break;
+      case 2:
+        // Show Content Management inline
+        break;
+      case 3:
+        // Navigate to Analytics - Coming soon
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Analytics page - Coming soon!')),
+        );
+        setState(() {
+          _selectedIndex = 1;
+        });
+        break;
+      case 4:
+        // Navigate to Tools
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeveloperToolsPage(),
+          ),
+        ).then((_) {
+          if (mounted) {
+            setState(() {
+              _selectedIndex = 1;
+            });
+          }
+        });
+        break;
+    }
   }
 
   // Get avatar emoji based on role
@@ -70,25 +116,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
   // Stream of users with search and filter
   Stream<QuerySnapshot> _getUsersStream() {
     Query query = _firestore.collection('users');
-
     // Apply role filter
     if (_selectedRoleFilter != 'All') {
       query = query.where('role', isEqualTo: _selectedRoleFilter.toLowerCase());
     }
-
     return query.snapshots();
   }
 
   // Filter users by search query
   List<DocumentSnapshot> _filterUsers(List<DocumentSnapshot> users) {
     if (_searchQuery.isEmpty) return users;
-
     return users.where((user) {
       final data = user.data() as Map<String, dynamic>;
       final name = (data['name'] ?? '').toString().toLowerCase();
       final email = (data['email'] ?? '').toString().toLowerCase();
       final role = (data['role'] ?? '').toString().toLowerCase();
-
       return name.contains(_searchQuery.toLowerCase()) ||
           email.contains(_searchQuery.toLowerCase()) ||
           role.contains(_searchQuery.toLowerCase());
@@ -102,7 +144,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'isActive': !currentStatus,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -145,7 +186,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+        builder: (context, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
@@ -210,7 +251,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 // Email Field
                 const Text(
                   'Email',
@@ -235,7 +275,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 16),
-
                 // Role Selection
                 const Text(
                   'Role',
@@ -280,7 +319,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         );
                       }).toList(),
                       onChanged: (String? newValue) {
-                        setState(() {
+                        setDialogState(() {
                           selectedRole = newValue!;
                         });
                       },
@@ -339,7 +378,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
         'role': role,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -484,7 +522,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Future<void> _deleteUser(String userId) async {
     try {
       await _firestore.collection('users').doc(userId).delete();
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -559,12 +596,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
               _buildDetailRow('Email', data['email'] ?? 'N/A'),
               const SizedBox(height: 16),
               _buildDetailRow(
-                  'Role',
-                  (data['role'] ?? 'student')[0].toUpperCase() +
-                      (data['role'] ?? 'student').substring(1)),
+                'Role',
+                (data['role'] ?? 'student')[0].toUpperCase() +
+                    (data['role'] ?? 'student').substring(1),
+              ),
               const SizedBox(height: 16),
               _buildDetailRow(
-                  'Student ID', data['studentId'] ?? data['uniqueId'] ?? 'N/A'),
+                'Student ID',
+                data['studentId'] ?? data['uniqueId'] ?? 'N/A',
+              ),
               const SizedBox(height: 16),
               _buildDetailRow(
                 'Status',
@@ -623,7 +663,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return 'N/A';
-
     try {
       final Timestamp ts = timestamp as Timestamp;
       final DateTime date = ts.toDate();
@@ -635,6 +674,44 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // If Content tab (index 2) is selected, show ContentManagementPage inline
+    if (_selectedIndex == 2) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF9FAFB),
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: const Color(0xFF0EA5E9),
+          title: const Text(
+            'Content Management',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                _selectedIndex = 1; // Go back to Users view
+              });
+            },
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: () {
+                setState(() {});
+              },
+            ),
+          ],
+        ),
+        body: const ContentManagementPage(),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      );
+    }
+
+    // Otherwise show User Management
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -652,6 +729,23 @@ class _UserManagementPageState extends State<UserManagementPage> {
           icon: const Icon(Icons.arrow_back, color: Color(0xFF1F2937)),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_add, color: Color(0xFF8B5CF6)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AddTeacherPage(),
+                ),
+              ).then((_) {
+                // Refresh the page when returning
+                setState(() {});
+              });
+            },
+            tooltip: 'Add Teacher',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -696,7 +790,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 // Role Filter Chips
                 SizedBox(
                   height: 40,
@@ -706,7 +799,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     itemBuilder: (context, index) {
                       final role = _roleFilters[index];
                       final isSelected = _selectedRoleFilter == role;
-
                       return Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: FilterChip(
@@ -740,7 +832,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ],
             ),
           ),
-
           // Users List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
@@ -805,7 +896,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
                 // Filter users based on search query
                 final filteredUsers = _filterUsers(snapshot.data!.docs);
-
                 if (filteredUsers.isEmpty) {
                   return Center(
                     child: Column(
@@ -844,7 +934,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   itemBuilder: (context, index) {
                     final userDoc = filteredUsers[index];
                     final data = userDoc.data() as Map<String, dynamic>;
-
                     return _buildUserCard(userDoc, data);
                   },
                 );
@@ -852,6 +941,101 @@ class _UserManagementPageState extends State<UserManagementPage> {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(
+                icon: Icons.dashboard_outlined,
+                selectedIcon: Icons.dashboard,
+                label: 'Dashboard',
+                index: 0,
+              ),
+              _buildNavItem(
+                icon: Icons.people_outline,
+                selectedIcon: Icons.people,
+                label: 'Users',
+                index: 1,
+              ),
+              _buildNavItem(
+                icon: Icons.description_outlined,
+                selectedIcon: Icons.description,
+                label: 'Content',
+                index: 2,
+              ),
+              _buildNavItem(
+                icon: Icons.bar_chart_outlined,
+                selectedIcon: Icons.bar_chart,
+                label: 'Analytics',
+                index: 3,
+              ),
+              _buildNavItem(
+                icon: Icons.settings_outlined,
+                selectedIcon: Icons.settings,
+                label: 'Tools',
+                index: 4,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = _selectedIndex == index;
+    return InkWell(
+      onTap: () => _onNavBarTap(index),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              color: isSelected
+                  ? const Color(0xFF0EA5E9)
+                  : const Color(0xFF9CA3AF),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: isSelected
+                    ? const Color(0xFF0EA5E9)
+                    : const Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -861,6 +1045,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     final email = data['email'] ?? 'No Email';
     final role = data['role'] ?? 'student';
     final isActive = data['isActive'] ?? true;
+    final isTeacher = role.toLowerCase() == 'teacher';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -881,124 +1066,170 @@ class _UserManagementPageState extends State<UserManagementPage> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
           children: [
-            // Avatar
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: _getRoleBackgroundColor(role),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  _getAvatarEmoji(role),
-                  style: const TextStyle(fontSize: 30),
-                ),
-              ),
-            ),
-            const SizedBox(width: 20),
-
-            // User Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                // Avatar
+                Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: _getRoleBackgroundColor(role),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF6B7280),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getRoleBackgroundColor(role),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                  child: Center(
                     child: Text(
-                      role[0].toUpperCase() + role.substring(1),
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: _getRoleColor(role),
+                      _getAvatarEmoji(role),
+                      style: const TextStyle(fontSize: 30),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                // User Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2937),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        email,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF6B7280),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getRoleBackgroundColor(role),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          role[0].toUpperCase() + role.substring(1),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _getRoleColor(role),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Action Buttons Column
+                Column(
+                  children: [
+                    // Active/Inactive Toggle
+                    Transform.scale(
+                      scale: 0.8,
+                      child: Switch(
+                        value: isActive,
+                        onChanged: (value) {
+                          _toggleUserStatus(userDoc.id, isActive);
+                        },
+                        activeColor: const Color(0xFF10B981),
+                        inactiveThumbColor: const Color(0xFF6B7280),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Action Buttons Column
-            Column(
-              children: [
-                // Active/Inactive Toggle
-                Transform.scale(
-                  scale: 0.8,
-                  child: Switch(
-                    value: isActive,
-                    onChanged: (value) {
-                      _toggleUserStatus(userDoc.id, isActive);
-                    },
-                    activeColor: const Color(0xFF10B981),
-                    inactiveThumbColor: const Color(0xFF6B7280),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Action Buttons Row
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // View Button
-                    IconButton(
-                      icon: const Icon(Icons.visibility_outlined),
-                      color: const Color(0xFF0EA5E9),
-                      onPressed: () => _showUserDetailsDialog(userDoc),
-                      tooltip: 'View Details',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-
-                    // Edit Button
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      color: const Color(0xFF2196F3),
-                      onPressed: () => _showEditUserDialog(userDoc),
-                      tooltip: 'Edit User',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-
-                    // Delete Button
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      color: const Color(0xFFDC2626),
-                      onPressed: () => _showDeleteConfirmationDialog(userDoc),
-                      tooltip: 'Delete User',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    const SizedBox(height: 4),
+                    // Action Buttons Row
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // View Button
+                        IconButton(
+                          icon: const Icon(Icons.visibility_outlined),
+                          color: const Color(0xFF0EA5E9),
+                          onPressed: () => _showUserDetailsDialog(userDoc),
+                          tooltip: 'View Details',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        // Edit Button
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          color: const Color(0xFF2196F3),
+                          onPressed: () => _showEditUserDialog(userDoc),
+                          tooltip: 'Edit User',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                        // Delete Button
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          color: const Color(0xFFDC2626),
+                          onPressed: () =>
+                              _showDeleteConfirmationDialog(userDoc),
+                          tooltip: 'Delete User',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
+            // Manage Grade 5 Access Button (only for teachers)
+            if (isTeacher) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ManageTeacherGradesPage(
+                          teacherId: userDoc.id,
+                          teacherName: name,
+                        ),
+                      ),
+                    ).then((_) {
+                      // Refresh when returning
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    });
+                  },
+                  icon: const Icon(Icons.school_outlined, size: 18),
+                  label: const Text(
+                    'Manage Grade 5 Access',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B5CF6),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

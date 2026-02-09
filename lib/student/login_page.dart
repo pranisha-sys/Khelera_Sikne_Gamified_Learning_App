@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'admin/admin_home_page.dart';
-import 'classselect.dart';
+import '../admin/admin_home_page.dart';
+import 'classfive/class_five_main.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -79,10 +79,12 @@ class _LoginPageState extends State<LoginPage> {
 
         if (mounted) {
           if (role == 'student') {
-            // Student → goes to class selection
+            // Student → goes directly to ClassFiveMain with class 5
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+              MaterialPageRoute(
+                builder: (context) => const ClassFiveMain(classNumber: 5),
+              ),
             );
           } else if (role == 'admin' || role == 'teacher') {
             // Admin or Teacher → goes to admin dashboard
@@ -94,7 +96,9 @@ class _LoginPageState extends State<LoginPage> {
             // Unknown role, treat as student
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+              MaterialPageRoute(
+                builder: (context) => const ClassFiveMain(classNumber: 5),
+              ),
             );
           }
         }
@@ -115,7 +119,9 @@ class _LoginPageState extends State<LoginPage> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+            MaterialPageRoute(
+              builder: (context) => const ClassFiveMain(classNumber: 5),
+            ),
           );
         }
       }

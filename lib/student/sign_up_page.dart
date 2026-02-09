@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'classselect.dart';
+import 'classfive/class_five_main.dart';
 import 'login_page.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -153,7 +153,9 @@ class _SignUpPageState extends State<SignUpPage> {
 
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const ClassSelectPage()),
+          MaterialPageRoute(
+            builder: (context) => const ClassFiveMain(classNumber: 5),
+          ),
           (route) => false,
         );
       }

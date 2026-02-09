@@ -1,29 +1,40 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'admin/admin_home_page.dart';
 import 'admin/admin_login_page.dart';
 import 'admin/user_management_page.dart';
-import 'home_page.dart';
+import 'student/home_page.dart';
+import 'teacher/teacher_home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    // Initialize Firebase
     await Firebase.initializeApp();
-    print("✅ Firebase connected successfully!");
-    print("Firebase App Name: ${Firebase.app().name}");
-    print("Firebase Auth instance: ${FirebaseAuth.instance}");
+    debugPrint("✅ Firebase connected successfully!");
+    debugPrint("Firebase App Name: ${Firebase.app().name}");
+    debugPrint("Firebase Auth instance: ${FirebaseAuth.instance}");
+
+    // Initialize Supabase
+    await Supabase.initialize(
+      url: 'https://mltvhrlltjtkgzcgxvvr.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdHZocmxsdGp0a2d6Y2d4dnZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyOTI2MzYsImV4cCI6MjA4NTg2ODYzNn0.aDXNqWUTcD0l3GGUejoGzAE7aQ9YrFSjMbRVVhpsJ-k',
+    );
+    debugPrint("✅ Supabase connected successfully!");
   } catch (e) {
-    print("❌ Firebase connection failed: $e");
+    debugPrint("❌ Initialization failed: $e");
   }
 
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -33,29 +44,21 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.cyan,
       ),
-      // ===== NAMED ROUTES =====
       initialRoute: '/',
       routes: {
-        '/': (context) => const SelectScreen(), // pick user or admin
-        '/home': (context) => const HomePage(), // user app
-        '/admin': (context) => const AdminLoginPage(), // admin login
-        '/admin-home': (context) => const AdminHomePage(), // admin dashboard
-        '/admin-users': (context) =>
-            const UserManagementPage(), // user management
+        '/': (context) => const SelectScreen(),
+        '/home': (context) => const HomePage(),
+        '/admin': (context) => const AdminLoginPage(),
+        '/admin-home': (context) => const AdminHomePage(),
+        '/teacher-home': (context) => const TeacherHomePage(),
+        '/admin-users': (context) => const UserManagementPage(),
       },
     );
   }
 }
 
-// ===================================================
-// SELECT SCREEN — choose between User App or Admin
-// ===================================================
-// If you don't need this screen, just change
-// initialRoute to '/home' or '/admin' directly.
-// ===================================================
-
 class SelectScreen extends StatelessWidget {
-  const SelectScreen({Key? key}) : super(key: key);
+  const SelectScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +68,6 @@ class SelectScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo
             SizedBox(
               width: 160,
               height: 160,
@@ -92,8 +94,6 @@ class SelectScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 48),
-
-            // User App Button
             SizedBox(
               width: 280,
               height: 56,
@@ -101,7 +101,7 @@ class SelectScreen extends StatelessWidget {
                 onPressed: () => Navigator.pushNamed(context, '/home'),
                 icon: const Icon(Icons.person_outline, size: 22),
                 label: const Text(
-                  'User App',
+                  'Student App',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -114,8 +114,6 @@ class SelectScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Admin Panel Button
             SizedBox(
               width: 280,
               height: 56,

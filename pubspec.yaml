@@ -17,6 +17,8 @@ dependencies:
   cloud_firestore: ^6.1.2
   firebase_storage: ^13.0.5
 
+  supabase_flutter: ^2.9.0
+
   # State Management
   provider: ^6.1.2
 
@@ -33,14 +35,15 @@ dependencies:
   # Utilities
   intl: ^0.20.2
 
-  # Image handling
-  image_picker: ^1.0.7
-
   # Forms and Validation
   flutter_form_builder: ^10.2.0
 
   # Icons
   font_awesome_flutter: ^10.7.0
+
+  flutter_image_compress: ^2.1.0
+  cached_network_image: ^3.3.0
+  file_picker: ^10.3.10
 
 dev_dependencies:
   flutter_test:
