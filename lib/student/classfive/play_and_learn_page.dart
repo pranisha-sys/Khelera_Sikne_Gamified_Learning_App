@@ -363,7 +363,7 @@ class _PlayAndLearnPageState extends State<PlayAndLearnPage> {
       onTap: isUnlocked
           ? () {
               // Navigate to mission page for unlocked topics
-              if (title == 'What is Matter?') {
+              if (title == 'Lets Learn about Matter') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(

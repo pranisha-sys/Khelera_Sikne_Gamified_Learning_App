@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+// Import your MatterContentEditorPage
+import 'matter_content_editor.dart'; // Adjust path as needed
+
 class TeacherMyClassesPage extends StatefulWidget {
   const TeacherMyClassesPage({Key? key}) : super(key: key);
 
@@ -565,7 +568,7 @@ class _TeacherMyClassesPageState extends State<TeacherMyClassesPage> {
     );
   }
 
-  /// Build individual grade card
+  /// Build individual grade card with navigation
   Widget _buildGradeCard(Map<String, dynamic> gradeData) {
     final grade = gradeData['grade'] as String;
     final color = gradeData['color'] as Color;
@@ -574,7 +577,16 @@ class _TeacherMyClassesPageState extends State<TeacherMyClassesPage> {
 
     return GestureDetector(
       onTap: () {
-        _showGradeDetailsDialog(gradeData);
+        // Navigate to MatterContentEditorPage
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MatterContentEditor(
+              grade: grade,
+              topicId: 'what_is_matter', // You can make this dynamic if needed
+            ),
+          ),
+        );
       },
       child: Container(
         decoration: BoxDecoration(
@@ -742,16 +754,16 @@ class _TeacherMyClassesPageState extends State<TeacherMyClassesPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Opening $grade...'),
-                  duration: const Duration(seconds: 1),
+              // Navigate to MatterContentEditorPage
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MatterContentEditor(
+                    grade: grade,
+                    topicId: 'what_is_matter',
+                  ),
                 ),
               );
-              // TODO: Navigate to grade details page
-              // Example: Navigator.push(context, MaterialPageRoute(
-              //   builder: (_) => MatterTopicsPage(grade: grade),
-              // ));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: color,
@@ -760,7 +772,7 @@ class _TeacherMyClassesPageState extends State<TeacherMyClassesPage> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text('View Details'),
+            child: const Text('Edit Content'),
           ),
         ],
       ),
