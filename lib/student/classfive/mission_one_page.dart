@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-/// Mobile-Responsive Student View for Matter Topics
-/// Displays content with real-time updates from Firestore
 class StudentMatterTopicPage extends StatefulWidget {
   final String grade; // e.g., "Grade 5"
   final String topicId; // e.g., "what_is_matter"
@@ -241,7 +239,7 @@ class _StudentMatterTopicPageState extends State<StudentMatterTopicPage> {
 
                         const SizedBox(height: 24),
 
-                        // Icon/Sparkle
+                        // Icon/Image - FIXED TO SHOW FULL IMAGE
                         Container(
                           width: isTablet ? 120 : 100,
                           height: isTablet ? 120 : 100,
@@ -254,18 +252,22 @@ class _StudentMatterTopicPageState extends State<StudentMatterTopicPage> {
                             borderRadius: BorderRadius.circular(50),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFE879F9)
+                                color: const Color(0xFF616973)
                                     .withValues(alpha: 0.3),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(
-                              '✨',
-                              style: TextStyle(
-                                fontSize: isTablet ? 56 : 48,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(50),
+                            child: Padding(
+                              padding: const EdgeInsets.all(15),
+                              child: Image.asset(
+                                'assets/images/chemistry_icon.png',
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: double.infinity,
                               ),
                             ),
                           ),
@@ -277,7 +279,7 @@ class _StudentMatterTopicPageState extends State<StudentMatterTopicPage> {
                         if (description.isNotEmpty)
                           Container(
                             width: double.infinity,
-                            padding: EdgeInsets.all(isTablet ? 24 : 20),
+                            padding: EdgeInsets.all(isTablet ? 14 : 10),
                             decoration: BoxDecoration(
                               color: const Color(0xFFFEF3C7),
                               borderRadius: BorderRadius.circular(16),
@@ -290,7 +292,7 @@ class _StudentMatterTopicPageState extends State<StudentMatterTopicPage> {
                               description,
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: isTablet ? 18 : 16,
+                                fontSize: isTablet ? 10 : 6,
                                 height: 1.6,
                                 color: const Color(0xFF78350F),
                               ),
@@ -708,7 +710,7 @@ class _MissionOnePageState extends State<MissionOnePage>
                         ],
                       ),
                       child: Text(
-                        'Everything physical in the universe is made of matter',
+                        '👉 Matter is anything that has weight and takes up space—even your school bag and the air that messes up your hair! 😂🎒💨',
                         style: TextStyle(
                           fontSize: 20,
                           color: Colors.grey.shade700,
@@ -779,7 +781,7 @@ class _MissionOnePageState extends State<MissionOnePage>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            'Start Mission',
+                            'Lets Go Partner',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,

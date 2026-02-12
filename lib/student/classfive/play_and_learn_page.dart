@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'mission_one_page.dart';
+import 'mission_one_page.dart'; // Import the mission page
 
 class PlayAndLearnPage extends StatefulWidget {
   const PlayAndLearnPage({super.key});
@@ -11,116 +10,139 @@ class PlayAndLearnPage extends StatefulWidget {
 }
 
 class _PlayAndLearnPageState extends State<PlayAndLearnPage> {
-  String selectedAvatar = '🐨'; // Default avatar
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAvatar();
-  }
-
-  Future<void> _loadAvatar() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      selectedAvatar = prefs.getString('student_avatar') ?? '🐨';
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFF5F3FF),
+      backgroundColor: const Color(0xFFB2EBF2),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Colors.grey.shade800),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF00838F)),
           onPressed: () => Navigator.pop(context),
         ),
-        actions: [
-          // Profile avatar - simple circle
-          GestureDetector(
-            onTap: () {
-              // Show profile or navigate to profile page
-            },
-            child: Container(
-              width: 56,
-              height: 56,
-              margin: const EdgeInsets.only(right: 16),
-              decoration: BoxDecoration(
-                color: Color(0xFF81D4FA),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  selectedAvatar,
-                  style: TextStyle(fontSize: 28),
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Scrollable content
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Chapter Header Card
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF9C27B0),
-                            Color(0xFF2196F3),
+          // Main scrollable content
+          SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+
+                  // HEADER SECTION
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF9C27B0), // Purple
+                          Color(0xFFE91E63), // Pink
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF9C27B0).withValues(alpha: 0.4),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.science,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Class 5 Science',
+                                    style: TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Chapter: Matter',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        const SizedBox(height: 20),
+
+                        // Matter Card
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                'Chapter 1',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontWeight: FontWeight.w500,
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF9C27B0)
+                                      .withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.psychology,
+                                  color: Color(0xFF9C27B0),
+                                  size: 28,
                                 ),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
+                              const SizedBox(width: 16),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(Icons.star,
-                                        color: Colors.yellow, size: 18),
-                                    const SizedBox(width: 4),
                                     Text(
-                                      '0',
+                                      'Matter',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        fontSize: 18,
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                        color: Color(0xFF212121),
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      '13 Lessons',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Color(0xFF757575),
                                       ),
                                     ),
                                   ],
@@ -128,185 +150,158 @@ class _PlayAndLearnPageState extends State<PlayAndLearnPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Matter',
-                            style: TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Text(
-                                'Progress',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withValues(alpha: 0.9),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Progress Bar
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Progress',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                              Spacer(),
-                              Text(
-                                '0%',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                Text(
+                                  '0/13',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: LinearProgressIndicator(
-                              value: 0.0,
-                              backgroundColor:
-                                  Colors.white.withValues(alpha: 0.3),
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                              minHeight: 8,
+                              ],
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: LinearProgressIndicator(
+                                value: 0.0,
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.3),
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                                minHeight: 8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24),
+                  ),
 
-                    // Topics List
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.lightbulb_outline,
-                      iconColor: Color(0xFFFFA726),
-                      title: 'What is Matter?',
-                      description:
-                          'Help find things that have mass and occupy space.',
-                      isUnlocked: true,
-                      showStartButton: true,
-                    ),
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 30),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.grain,
-                      iconColor: Color(0xFF66BB6A),
-                      title: 'Tiny Particles',
-                      description:
-                          'Discover how matter is made of tiny particles.',
-                      isUnlocked: false,
+                  // WHAT YOU'LL LEARN SECTION
+                  const Text(
+                    'What You\'ll Learn',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1565C0),
                     ),
-                    const SizedBox(height: 16),
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.category_outlined,
-                      iconColor: Color(0xFF42A5F5),
-                      title: 'Characteristics',
-                      description: 'Learn the special properties of matter.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.water_drop_outlined,
-                      iconColor: Color(0xFF26C6DA),
-                      title: 'States of Matter',
-                      description: 'Explore the three states of matter.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  // Lesson List
+                  _buildLessonItem(
+                    icon: Icons.science_outlined,
+                    title: 'What is Matter?',
+                    isUnlocked: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MissionOnePage(),
+                        ),
+                      );
+                    },
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.square_outlined,
-                      iconColor: Color(0xFF8D6E63),
-                      title: 'Solids',
-                      description: 'Understand solid materials around you.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  _buildLessonItem(
+                    icon: Icons.straighten,
+                    title: 'Properties of Matter',
+                    isUnlocked: false,
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.opacity_outlined,
-                      iconColor: Color(0xFF29B6F6),
-                      title: 'Liquids',
-                      description: 'Discover liquids and how they flow.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  _buildLessonItem(
+                    icon: Icons.bubble_chart,
+                    title: 'Molecules',
+                    isUnlocked: false,
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.cloud_outlined,
-                      iconColor: Color(0xFFB0BEC5),
-                      title: 'Gases',
-                      description: 'Learn about gases we cannot always see.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  _buildLessonItem(
+                    icon: Icons.gas_meter,
+                    title: 'States of Matter',
+                    isUnlocked: false,
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.sync_alt,
-                      iconColor: Color(0xFF7E57C2),
-                      title: 'Changes in Matter',
-                      description:
-                          'See how matter changes from one state to another.',
-                      isUnlocked: false,
-                    ),
-                    const SizedBox(height: 16),
+                  _buildLessonItem(
+                    icon: Icons.whatshot,
+                    title: 'Effect of Heat on Matter',
+                    isUnlocked: false,
+                  ),
 
-                    _buildTopicCard(
-                      context,
-                      icon: Icons.emoji_events_outlined,
-                      iconColor: Color(0xFFFF7043),
-                      title: 'Boss Quiz 🎯',
-                      description: 'Test everything you learned!',
-                      isUnlocked: false,
-                      isBossQuiz: true,
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  _buildLessonItem(
+                    icon: Icons.water_drop,
+                    title: 'Water can Dissolve Many Substances',
+                    isUnlocked: false,
+                  ),
+
+                  _buildLessonItem(
+                    icon: Icons.filter_alt,
+                    title: 'Impurities of Water',
+                    isUnlocked: false,
+                  ),
+
+                  _buildLessonItem(
+                    icon: Icons.cleaning_services,
+                    title: 'Removal of Insoluble Impurities',
+                    isUnlocked: false,
+                  ),
+
+                  _buildLessonItem(
+                    icon: Icons.water_damage,
+                    title: 'Removal of Soluble Impurities',
+                    isUnlocked: false,
+                  ),
+
+                  const SizedBox(height: 100), // Extra space for bottom button
+                ],
               ),
             ),
           ),
 
-          // Fixed Start Learning Button at bottom
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Color(0xFFF5F3FF),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 8,
-                  offset: Offset(0, -2),
-                ),
-              ],
-            ),
+          // Fixed Bottom Button
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
             child: Container(
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
+                gradient: const LinearGradient(
                   colors: [
-                    Color(0xFF9C27B0),
-                    Color(0xFF2196F3),
+                    Color(0xFF7C4DFF), // Deep Purple
+                    Color(0xFFD500F9), // Pink Purple
                   ],
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Color(0xFF9C27B0).withValues(alpha: 0.3),
+                    color: const Color(0xFF7C4DFF).withValues(alpha: 0.4),
                     blurRadius: 12,
-                    offset: Offset(0, 6),
+                    offset: const Offset(0, 6),
                   ),
                 ],
               ),
@@ -314,27 +309,32 @@ class _PlayAndLearnPageState extends State<PlayAndLearnPage> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    // Start first unlocked topic
+                    // Navigate to MissionOnePage
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => MissionOnePage(),
+                        builder: (context) => const MissionOnePage(),
                       ),
                     );
                   },
                   borderRadius: BorderRadius.circular(16),
-                  child: Center(
+                  child: const Center(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.play_arrow, color: Colors.white, size: 28),
-                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                        SizedBox(width: 8),
                         Text(
                           'Start Learning',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            letterSpacing: 0.5,
                           ),
                         ),
                       ],
@@ -346,132 +346,150 @@ class _PlayAndLearnPageState extends State<PlayAndLearnPage> {
           ),
         ],
       ),
+      // Fixed Floating Action Button with Emoji - Positioned higher to avoid overlap
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(
+            bottom: 72), // Raised above the Start Learning button
+        child: Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF9C27B0),
+                Color(0xFFE91E63),
+              ],
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF9C27B0).withValues(alpha: 0.5),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                // Navigate to lessons list or show dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Starting your learning journey! 🎉'),
+                    backgroundColor: Color(0xFF9C27B0),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(32),
+              child: const Center(
+                child: Text(
+                  '🎉',
+                  style: TextStyle(fontSize: 32),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
-  Widget _buildTopicCard(
-    BuildContext context, {
+  Widget _buildLessonItem({
     required IconData icon,
-    required Color iconColor,
     required String title,
-    required String description,
     required bool isUnlocked,
-    bool showStartButton = false,
-    bool isBossQuiz = false,
+    VoidCallback? onTap,
   }) {
-    return GestureDetector(
-      onTap: isUnlocked
-          ? () {
-              // Navigate to mission page for unlocked topics
-              if (title == 'Lets Learn about Matter') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => MissionOnePage(),
-                  ),
-                );
-              }
-            }
-          : null,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isUnlocked ? Colors.white : Color(0xFFF5F5F5),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: isUnlocked ? onTap : null,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isUnlocked
-                ? iconColor.withValues(alpha: 0.3)
-                : Colors.grey.withValues(alpha: 0.2),
-            width: 2,
-          ),
-          boxShadow: isUnlocked
-              ? [
-                  BoxShadow(
-                    color: iconColor.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ]
-              : [],
-        ),
-        child: Row(
-          children: [
-            // Icon
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
                 color: isUnlocked
-                    ? iconColor.withValues(alpha: 0.1)
-                    : Colors.grey.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isUnlocked ? icon : Icons.lock,
-                color: isUnlocked ? iconColor : Colors.grey.shade400,
-                size: 28,
+                    ? const Color(0xFF9C27B0).withValues(alpha: 0.3)
+                    : Colors.grey.shade300,
               ),
             ),
-            const SizedBox(width: 16),
-
-            // Content
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isUnlocked
+                        ? const Color(0xFF9C27B0).withValues(alpha: 0.1)
+                        : Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isUnlocked ? icon : Icons.lock,
+                    color: isUnlocked ? const Color(0xFF9C27B0) : Colors.grey,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: isUnlocked
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade500,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: isUnlocked ? const Color(0xFF212121) : Colors.grey,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isUnlocked
-                          ? Colors.grey.shade600
-                          : Colors.grey.shade400,
+                ),
+                if (isUnlocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C27B0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Start',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Locked',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                  if (showStartButton) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.play_arrow,
-                            color: Color(0xFFFF5722), size: 18),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Start Mission',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFFF5722),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+              ],
             ),
-
-            // Arrow for unlocked items
-            if (isUnlocked)
-              Icon(
-                Icons.arrow_forward_ios,
-                color: iconColor,
-                size: 20,
-              ),
-          ],
+          ),
         ),
       ),
     );

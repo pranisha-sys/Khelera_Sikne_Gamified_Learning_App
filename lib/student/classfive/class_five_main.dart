@@ -19,7 +19,7 @@ class ClassFiveMain extends StatefulWidget {
 
 class _ClassFiveMainState extends State<ClassFiveMain> {
   final User? user = FirebaseAuth.instance.currentUser;
-  String selectedAvatar = '🐨'; // Default avatar
+  String selectedAvatar = '🐨';
   String nickname = '';
 
   @override
@@ -29,14 +29,17 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
   }
 
   Future<void> _loadProfileData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      nickname = prefs.getString('student_nickname') ?? '';
-      selectedAvatar = prefs.getString('student_avatar') ?? '🐨';
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() {
+        nickname = prefs.getString('student_nickname') ?? '';
+        selectedAvatar = prefs.getString('student_avatar') ?? '🐨';
+      });
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    }
   }
 
-  // Get display name - prioritize nickname over full name
   String _getDisplayName() {
     if (nickname.isNotEmpty) {
       return nickname;
@@ -47,12 +50,10 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
     return 'Student';
   }
 
-  // Get full name for profile sheet
   String _getFullName() {
     return user?.displayName ?? 'Student';
   }
 
-  // Show profile bottom sheet
   void _showProfileBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -60,7 +61,7 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.6,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(24),
@@ -69,7 +70,6 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
         ),
         child: Column(
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 12),
               width: 40,
@@ -80,23 +80,21 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
               ),
             ),
             const SizedBox(height: 24),
-            // Profile Avatar with cute emoji
             Container(
               width: 100,
               height: 100,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Color(0xFF81D4FA),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
                   selectedAvatar,
-                  style: TextStyle(fontSize: 50),
+                  style: const TextStyle(fontSize: 50),
                 ),
               ),
             ),
             const SizedBox(height: 16),
-            // Name (show nickname if available, otherwise full name)
             Text(
               _getDisplayName(),
               style: TextStyle(
@@ -105,7 +103,6 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                 color: Colors.grey.shade800,
               ),
             ),
-            // Show full name if nickname is being displayed
             if (nickname.isNotEmpty && _getFullName() != 'Student') ...[
               const SizedBox(height: 4),
               Text(
@@ -117,9 +114,7 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
               ),
             ],
             const SizedBox(height: 24),
-            // Divider
             Divider(height: 1, color: Colors.grey.shade200),
-            // Profile Options
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(16),
@@ -131,16 +126,18 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                     subtitle: 'Update your personal information',
                     onTap: () async {
                       Navigator.pop(context);
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditProfilePage(),
-                        ),
-                      );
-                      // Refresh the UI after returning from edit profile
-                      if (result == true) {
-                        await _loadProfileData();
-                        setState(() {});
+                      try {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditProfilePage(),
+                          ),
+                        );
+                        if (result == true && mounted) {
+                          await _loadProfileData();
+                        }
+                      } catch (e) {
+                        debugPrint('Navigation error: $e');
                       }
                     },
                   ),
@@ -151,8 +148,13 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                     title: 'Achievements',
                     subtitle: 'View your earned badges',
                     onTap: () {
-                      // Navigate to achievements
                       Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Achievements page coming soon!'),
+                          backgroundColor: Colors.amber,
+                        ),
+                      );
                     },
                   ),
                   const SizedBox(height: 12),
@@ -162,38 +164,42 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                     title: 'Log Out',
                     subtitle: 'Log out from your account',
                     onTap: () async {
-                      // Show confirmation dialog
                       final shouldLogout = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: Text('Log Out'),
-                          content: Text('Are you sure you want to log out?'),
+                          title: const Text('Log Out'),
+                          content:
+                              const Text('Are you sure you want to log out?'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context, false),
-                              child: Text('Cancel'),
+                              child: const Text('Cancel'),
                             ),
                             TextButton(
                               onPressed: () => Navigator.pop(context, true),
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.red,
                               ),
-                              child: Text('Log Out'),
+                              child: const Text('Log Out'),
                             ),
                           ],
                         ),
                       );
 
                       if (shouldLogout == true) {
-                        await FirebaseAuth.instance.signOut();
-                        // Close the bottom sheet first
-                        Navigator.pop(context);
-                        // Then navigate to the root screen
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/',
-                          (route) => false,
-                        );
+                        try {
+                          await FirebaseAuth.instance.signOut();
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              '/',
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('Logout error: $e');
+                        }
                       }
                     },
                   ),
@@ -228,7 +234,7 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.1),
+                color: iconColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: iconColor, size: 24),
@@ -267,29 +273,26 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFB2EBF2),
+      backgroundColor: const Color(0xFFB2EBF2), // Light cyan background
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
-          // Profile avatar - simple circle
           GestureDetector(
-            onTap: () {
-              _showProfileBottomSheet(context);
-            },
+            onTap: () => _showProfileBottomSheet(context),
             child: Container(
               width: 56,
               height: 56,
               margin: const EdgeInsets.only(right: 16),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Color(0xFF81D4FA),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Text(
                   selectedAvatar,
-                  style: TextStyle(fontSize: 28),
+                  style: const TextStyle(fontSize: 28),
                 ),
               ),
             ),
@@ -304,91 +307,95 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 10),
-              // Welcome Header
+
+              // WELCOME HEADER
               Center(
                 child: Column(
                   children: [
                     Text(
                       'Welcome, ${_getDisplayName()}!',
-                      style: TextStyle(
-                        fontSize: 30,
+                      style: const TextStyle(
+                        fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: Colors.cyan.shade700,
+                        color: Color(0xFF00838F), // Dark cyan for contrast
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 8),
                     Text(
                       'Class ${widget.classNumber} • Let\'s start your science adventure',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.black87,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF006064), // Darker cyan
+                        fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              // Stats Cards
+
+              const SizedBox(height: 30),
+
+              // STATS CARDS
               Row(
                 children: [
                   Expanded(
-                    child: _buildStatCard(
+                    child: _buildSimpleStatCard(
                       icon: Icons.videogame_asset,
-                      iconColor: Colors.purple.shade400,
+                      iconColor: const Color(0xFF7B1FA2), // Purple
                       title: '0',
                       subtitle: 'Games Played',
-                      backgroundColor: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildStatCard(
+                    child: _buildSimpleStatCard(
                       icon: Icons.stars,
-                      iconColor: Colors.blue.shade400,
+                      iconColor: const Color(0xFF1976D2), // Blue
                       title: '8',
                       subtitle: 'Topics Mastered',
-                      backgroundColor: Colors.white,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: _buildStatCard(
+                    child: _buildSimpleStatCard(
                       icon: Icons.emoji_events,
-                      iconColor: Colors.amber.shade600,
+                      iconColor: const Color(0xFFF57C00), // Orange
                       title: '5',
                       subtitle: 'Achievements',
-                      backgroundColor: Colors.white,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 60),
-              // Your Learning Hub
-              Row(
+
+              const SizedBox(height: 35),
+
+              // 1. YOUR LEARNING HUB HEADER
+              const Row(
                 children: [
-                  const Icon(Icons.rocket_launch,
-                      color: Colors.purple, size: 24),
-                  const SizedBox(width: 8),
-                  const Text(
+                  Icon(
+                    Icons.rocket_launch,
+                    color: Color(0xFF6A1B9A), // Deep purple
+                    size: 28,
+                  ),
+                  SizedBox(width: 10),
+                  Text(
                     'Your Learning Hub',
                     style: TextStyle(
-                      fontSize: 25,
+                      fontSize: 26,
                       fontWeight: FontWeight.bold,
+                      color: Color(0xFF4A148C), // Very dark purple
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
-              // Play & Learn Card (Big Container)
-              _buildLearningCard(
-                title: 'Play & Learn',
-                emoji: '🎮',
-                subtitle: 'Start interactive science games',
-                backgroundColor: Color(0xFFE8D5F2),
-                icon: Icons.videogame_asset_outlined,
-                iconColor: Colors.purple.shade400,
+
+              const SizedBox(height: 25),
+
+              // 2. PLAY AND LEARN CARD - UPDATED WITH NAVIGATION
+              GestureDetector(
                 onTap: () {
+                  // Navigate to MissionOnePage
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -396,26 +403,100 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                     ),
                   );
                 },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(
+                            0xFF7ED957), // Fresh Green – energetic and kid-friendly
+                        Color(0xFFA78BFA), // Light Purple – creative and fun
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF3B8C85).withOpacity(0.4),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Game emoji in a circle
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.25),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Text(
+                          '🎮',
+                          style: TextStyle(fontSize: 36),
+                        ),
+                      ),
+                      const SizedBox(width: 28),
+                      // Text
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Play and Learn',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            SizedBox(height: 6),
+                            Text(
+                              'Explore fun Matter Learning',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Arrow
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 40),
-              // Motivation Banner
+
+              const SizedBox(height: 50),
+
+              // 3. KEEP LEARNING, KEEP GROWING CARD
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(25),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                     colors: [
-                      Color(0xFF9C27B0),
-                      Color(0xFFE91E63),
-                      Color(0xFFFF5722),
+                      Color(0xFF9C27B0), // Purple
+                      Color(0xFFE91E63), // Pink
+                      Color(0xFF8E24AA), // Purple variant
                     ],
                   ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.purple.shade200.withValues(alpha: 0.5),
+                      color: const Color(0xFF9C27B0).withOpacity(0.4),
                       blurRadius: 15,
                       offset: const Offset(0, 8),
                     ),
@@ -423,26 +504,23 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                 ),
                 child: Stack(
                   children: [
-                    Positioned(
+                    const Positioned(
                       right: 80,
                       bottom: 5,
-                      child: const Text('⭐', style: TextStyle(fontSize: 20)),
+                      child: Text('⭐', style: TextStyle(fontSize: 22)),
                     ),
-                    Positioned(
+                    const Positioned(
                       right: 15,
                       bottom: 15,
-                      child: const Text('⭐', style: TextStyle(fontSize: 15)),
+                      child: Text('⭐', style: TextStyle(fontSize: 16)),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: const [
-                            Text(
-                              '🏆',
-                              style: TextStyle(fontSize: 14),
-                            ),
-                            SizedBox(width: 15),
+                        const Row(
+                          children: [
+                            Text('🏆', style: TextStyle(fontSize: 25)),
+                            SizedBox(width: 30),
                             Expanded(
                               child: Text(
                                 'Keep Learning, Keep Growing!',
@@ -459,8 +537,8 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                         Text(
                           'Complete all games to unlock special achievements and rewards.',
                           style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white.withValues(alpha: 0.95),
+                            fontSize: 18,
+                            color: Colors.white.withOpacity(0.95),
                           ),
                         ),
                       ],
@@ -468,6 +546,7 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
                   ],
                 ),
               ),
+
               const SizedBox(height: 10),
             ],
           ),
@@ -476,225 +555,51 @@ class _ClassFiveMainState extends State<ClassFiveMain> {
     );
   }
 
-  Widget _buildStatCard({
+  // SIMPLIFIED STAT CARD
+  Widget _buildSimpleStatCard({
     required IconData icon,
     required Color iconColor,
     required String title,
     required String subtitle,
-    required Color backgroundColor,
   }) {
-    return _StatCardWithHover(
-      icon: icon,
-      iconColor: iconColor,
-      title: title,
-      subtitle: subtitle,
-      backgroundColor: backgroundColor,
-    );
-  }
-
-  Widget _buildLearningCard({
-    required String title,
-    required String emoji,
-    required String subtitle,
-    required Color backgroundColor,
-    required IconData icon,
-    required Color iconColor,
-    required VoidCallback onTap,
-  }) {
-    return _LearningCardWithHover(
-      title: title,
-      emoji: emoji,
-      subtitle: subtitle,
-      backgroundColor: backgroundColor,
-      icon: icon,
-      iconColor: iconColor,
-      onTap: onTap,
-    );
-  }
-}
-
-// Stat Card with Hover Effect
-class _StatCardWithHover extends StatefulWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final Color backgroundColor;
-
-  const _StatCardWithHover({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.backgroundColor,
-  });
-
-  @override
-  State<_StatCardWithHover> createState() => _StatCardWithHoverState();
-}
-
-class _StatCardWithHoverState extends State<_StatCardWithHover> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        transform: Matrix4.identity()
-          ..scale(_isHovered ? 1.05 : 1.0, _isHovered ? 1.05 : 1.0),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        decoration: BoxDecoration(
-          color: widget.backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: _isHovered
-                  ? widget.iconColor.withValues(alpha: 0.3)
-                  : Colors.black.withValues(alpha: 0.05),
-              blurRadius: _isHovered ? 15.0 : 8.0,
-              offset: Offset(0, _isHovered ? 6 : 3),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Icon(widget.icon, color: widget.iconColor, size: 28),
-            const SizedBox(height: 10),
-            Text(
-              widget.title,
-              style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              widget.subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: iconColor.withOpacity(0.15),
+            blurRadius: 10.0,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-    );
-  }
-}
-
-// Learning Card with Hover Effect (Big Container)
-class _LearningCardWithHover extends StatefulWidget {
-  final String title;
-  final String emoji;
-  final String subtitle;
-  final Color backgroundColor;
-  final IconData icon;
-  final Color iconColor;
-  final VoidCallback onTap;
-
-  const _LearningCardWithHover({
-    required this.title,
-    required this.emoji,
-    required this.subtitle,
-    required this.backgroundColor,
-    required this.icon,
-    required this.iconColor,
-    required this.onTap,
-  });
-
-  @override
-  State<_LearningCardWithHover> createState() => _LearningCardWithHoverState();
-}
-
-class _LearningCardWithHoverState extends State<_LearningCardWithHover> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        transform: Matrix4.identity()
-          ..scale(_isHovered ? 1.02 : 1.0, _isHovered ? 1.02 : 1.0),
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: widget.backgroundColor,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: _isHovered
-                      ? widget.iconColor.withValues(alpha: 0.3)
-                      : Colors.black.withValues(alpha: 0.06),
-                  blurRadius: _isHovered ? 15.0 : 8.0,
-                  offset: Offset(0, _isHovered ? 6 : 3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(widget.icon, color: widget.iconColor, size: 28),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            widget.title,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade800,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Text(
-                            widget.emoji,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.subtitle,
-                        style: TextStyle(
-                          fontSize: 20,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward,
-                  color: Colors.grey.shade600,
-                  size: 32,
-                ),
-              ],
+      child: Column(
+        children: [
+          Icon(icon, color: iconColor, size: 32),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF212121),
             ),
           ),
-        ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
       ),
     );
   }
