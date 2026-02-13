@@ -539,8 +539,6 @@ bool _validateQuestion(
       opt4.text.trim().isNotEmpty;
 }
 
-/// Admin/Teacher Content Editor for Matter Topics - MODERNIZED VERSION
-/// Now uses the modern bottom sheet dialog for questions
 class MatterContentEditor extends StatefulWidget {
   final String grade; // e.g., "Grade 5"
   final String topicId; // e.g., "what_is_matter"
