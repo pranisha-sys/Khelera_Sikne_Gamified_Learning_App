@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'activity_system.dart';
+import 'analytics_page.dart';
 import 'content_management.dart';
 import 'developer_tools_page.dart';
 import 'user_management_page.dart';
@@ -105,11 +106,16 @@ class _AdminHomePageState extends State<AdminHomePage> {
         // Content page - shown inline
         break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Analytics page - Coming soon!')),
-        );
-        setState(() {
-          _selectedIndex = 0;
+        // Navigate to Analytics Page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AnalyticsPage(),
+          ),
+        ).then((_) {
+          setState(() {
+            _selectedIndex = 0;
+          });
         });
         break;
       case 4:

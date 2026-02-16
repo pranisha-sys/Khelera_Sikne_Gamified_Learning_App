@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'all_students_page.dart';
+import 'teacher_analytics_page.dart';
 import 'teacher_my_classes_page.dart';
 import 'teacher_profile_page.dart';
 import 'teacher_quizzes_page.dart';
@@ -19,12 +21,11 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
 
   String _teacherName = 'Teacher';
   int _totalClasses = 0;
-  int _assignedTopics = 0;
-  int _activeStudents = 0;
-  int _overallQuizScore = 0;
+  int _totalEnrolledStudents = 0;
   bool _isLoading = true;
   List<Map<String, dynamic>> _classes = [];
-  List<Map<String, dynamic>> _quizResults = [];
+  List<String> _assignedGrades = [];
+  List<Map<String, dynamic>> _allStudents = [];
 
   @override
   void initState() {
@@ -46,7 +47,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
       debugPrint('\n🔍 ============ LOADING TEACHER DATA ============');
       debugPrint('Teacher User ID: ${user.uid}');
 
-      // Get teacher's name from Firestore
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
         final data = userDoc.data();
@@ -54,13 +54,40 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           _teacherName = (data?['name'] as String?) ?? 'Teacher';
         });
         debugPrint('📚 Teacher Name: $_teacherName');
+
+        Set<String> assignedGradesSet = {};
+
+        if (data?.containsKey('assignedGrades') == true) {
+          final gradesData = data!['assignedGrades'];
+          if (gradesData is List) {
+            for (var grade in gradesData) {
+              if (grade is String && grade.isNotEmpty) {
+                assignedGradesSet.add(grade);
+              }
+            }
+          }
+        }
+
+        for (int i = 5; i <= 10; i++) {
+          final gradeKey = 'grade${i}Access';
+          if (data?.containsKey(gradeKey) == true && data![gradeKey] == true) {
+            assignedGradesSet.add('Grade $i');
+          }
+        }
+
+        setState(() {
+          _assignedGrades = assignedGradesSet.toList();
+        });
+
+        debugPrint('📚 Assigned Grades: $_assignedGrades');
       }
 
-      // Load teacher's assigned classes from Firebase
       await _loadAssignedClasses(user.uid);
+      await _loadAllStudents();
 
-      // Load quiz results
-      await _loadQuizResults(user.uid);
+      setState(() {
+        _isLoading = false;
+      });
     } catch (e) {
       debugPrint('❌ Error loading teacher data: $e');
       setState(() {
@@ -69,173 +96,139 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
     }
   }
 
-  /// Load Classes Assigned to Teacher
-  /// Queries classes where teacherId field matches current teacher's uid
+  /// Load Classes Assigned to Teacher and count their quizzes
   Future<void> _loadAssignedClasses(String teacherId) async {
     try {
       debugPrint('\n🔍 ============ LOADING CLASSES ============');
-      debugPrint('Searching for classes with teacherId: $teacherId');
+      debugPrint('Assigned Grades Count: ${_assignedGrades.length}');
+      debugPrint('Assigned Grades List: $_assignedGrades');
 
-      // Query classes by teacherId
-      final classesSnapshot = await _firestore
-          .collection('classes')
-          .where('teacherId', isEqualTo: teacherId)
-          .get();
-
-      debugPrint(
-          '📋 Found ${classesSnapshot.docs.length} classes assigned to this teacher');
-
-      if (classesSnapshot.docs.isEmpty) {
-        debugPrint('⚠️ No classes found with teacherId = $teacherId');
-        debugPrint(
-            '   Make sure classes in Firebase have a "teacherId" field set to: $teacherId');
+      if (_assignedGrades.isEmpty) {
+        debugPrint('⚠️ No assigned grades found for this teacher');
+        setState(() {
+          _classes = [];
+          _totalClasses = 0;
+        });
+        return;
       }
 
       List<Map<String, dynamic>> classList = [];
-      int totalStudents = 0;
-      Set<String> uniqueTopics = {};
 
-      for (var classDoc in classesSnapshot.docs) {
-        final classData = classDoc.data();
-        final classId = classDoc.id;
+      // Loop through each assigned grade
+      for (String grade in _assignedGrades) {
+        debugPrint('\n✅ Processing grade: $grade');
 
-        debugPrint('\n✅ Class found: $classId');
-        debugPrint('   Name: ${classData['name']}');
-        debugPrint('   Grade: ${classData['grade']}');
-        debugPrint('   Section: ${classData['section']}');
-        debugPrint('   Topic: ${classData['topic']}');
-        debugPrint('   Teacher ID: ${classData['teacherId']}');
+        // Extract grade number (e.g., "Grade 5" -> "5")
+        final gradeNumber = grade.replaceAll('Grade ', '').trim();
+        debugPrint('   Looking for quizzes in: $grade');
 
-        final className = (classData['name'] as String?) ?? 'Unnamed Class';
-        final topic = (classData['topic'] as String?) ?? 'No topic assigned';
-        final classGrade = (classData['grade'] as String?) ?? 'Unknown Grade';
-        final section = (classData['section'] as String?) ?? 'A';
-
-        // Count students in this class
-        int studentCount = 0;
         try {
-          final studentsSnapshot = await _firestore
-              .collection('classes')
-              .doc(classId)
-              .collection('students')
-              .get();
-          studentCount = studentsSnapshot.docs.length;
-          debugPrint('   Students enrolled: $studentCount');
-        } catch (e) {
-          debugPrint('   ⚠️ Error counting students: $e');
-        }
-
-        totalStudents += studentCount;
-
-        // Track unique topics
-        if (topic != 'No topic assigned' && topic.isNotEmpty) {
-          uniqueTopics.add(topic);
-        }
-
-        classList.add({
-          'id': classId,
-          'name': className,
-          'grade': classGrade,
-          'students': studentCount,
-          'topic': topic,
-          'section': section,
-        });
-      }
-
-      setState(() {
-        _classes = classList;
-        _totalClasses = classList.length;
-        _activeStudents = totalStudents;
-        _assignedTopics = uniqueTopics.length;
-        _isLoading = false;
-      });
-
-      debugPrint('\n📊 TEACHER STATISTICS SUMMARY:');
-      debugPrint('   Total Classes Assigned: $_totalClasses');
-      debugPrint('   Total Active Students: $_activeStudents');
-      debugPrint('   Unique Topics Assigned: $_assignedTopics');
-
-      if (_totalClasses > 0) {
-        debugPrint('\n📚 CLASS LIST:');
-        for (var classInfo in classList) {
-          debugPrint(
-              '   - ${classInfo['name']} (${classInfo['grade']}, Section ${classInfo['section']})');
-          debugPrint(
-              '     Students: ${classInfo['students']}, Topic: ${classInfo['topic']}');
-        }
-      }
-
-      debugPrint('==========================================\n');
-    } catch (e) {
-      debugPrint('❌ Error loading assigned classes: $e');
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  /// Load Quiz Results from Firebase
-  Future<void> _loadQuizResults(String teacherId) async {
-    try {
-      // Get recent quiz results for teacher's classes
-      final quizSnapshot = await _firestore
-          .collection('quizzes')
-          .where('teacherId', isEqualTo: teacherId)
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .get();
-
-      List<Map<String, dynamic>> quizList = [];
-
-      if (quizSnapshot.docs.isNotEmpty) {
-        for (var doc in quizSnapshot.docs) {
-          final quizData = doc.data();
-
-          // Calculate completion stats
-          final resultsSnapshot = await _firestore
+          // Count quizzes assigned by this teacher for this grade
+          // FIXED: Query using 'teacherId' to match the saved field
+          final quizzesSnapshot = await _firestore
               .collection('quizzes')
-              .doc(doc.id)
-              .collection('results')
+              .where('teacherId', isEqualTo: teacherId)
+              .where('grade', isEqualTo: grade)
               .get();
 
-          int completedCount = resultsSnapshot.docs.length;
-          double averageScore = 0;
+          int quizCount = quizzesSnapshot.docs.length;
+          debugPrint(
+              '   ✅ Found $quizCount quizzes assigned by teacher for $grade');
 
-          if (completedCount > 0) {
-            double totalScore = 0;
-            for (var result in resultsSnapshot.docs) {
-              totalScore += ((result.data()['score'] as num?) ?? 0).toDouble();
-            }
-            averageScore = totalScore / completedCount;
+          // Count students enrolled in this grade
+          int studentCount = 0;
+          try {
+            final studentsSnapshot = await _firestore
+                .collection('users')
+                .where('role', isEqualTo: 'student')
+                .where('grade', isEqualTo: grade)
+                .get();
+            studentCount = studentsSnapshot.docs.length;
+            debugPrint('   Found $studentCount students in $grade');
+          } catch (e) {
+            debugPrint('   ⚠️ Error counting students: $e');
           }
 
-          quizList.add({
-            'title': (quizData['title'] as String?) ?? 'Untitled Quiz',
-            'topic': (quizData['topic'] as String?) ?? '',
-            'completedCount': completedCount,
-            'averageScore': averageScore.round(),
+          classList.add({
+            'id': 'grade$gradeNumber',
+            'name': grade,
+            'grade': grade,
+            'students': studentCount,
+            'quizzes': quizCount,
+            'section': 'All',
+          });
+        } catch (e) {
+          debugPrint('   ❌ Error loading quizzes for grade $grade: $e');
+
+          // Still add the class even if no quizzes found yet
+          classList.add({
+            'id': 'grade$gradeNumber',
+            'name': grade,
+            'grade': grade,
+            'students': 0,
+            'quizzes': 0,
+            'section': 'All',
           });
         }
       }
 
-      setState(() {
-        _quizResults = quizList;
+      debugPrint('\n📊 FINAL STATISTICS:');
+      debugPrint('   Classes found: ${classList.length}');
 
-        // Calculate overall average quiz score
-        if (quizList.isNotEmpty) {
-          double totalScore = 0;
-          for (var quiz in quizList) {
-            totalScore += (quiz['averageScore'] as int? ?? 0).toDouble();
-          }
-          _overallQuizScore = (totalScore / quizList.length).round();
-        } else {
-          _overallQuizScore = 0;
-        }
-      });
-    } catch (e) {
-      debugPrint('❌ Error loading quiz results: $e');
       setState(() {
-        _overallQuizScore = 0;
+        _classes = classList;
+        _totalClasses = classList.length;
+      });
+
+      debugPrint('   Total Classes (Grades): $_totalClasses');
+      debugPrint('   Enrolled Students: $_totalEnrolledStudents');
+    } catch (e) {
+      debugPrint('❌ Error loading assigned classes: $e');
+    }
+  }
+
+  /// Load All Enrolled Students from Firebase
+  Future<void> _loadAllStudents() async {
+    try {
+      debugPrint('\n🔍 ============ LOADING ALL STUDENTS ============');
+
+      final studentsSnapshot = await _firestore
+          .collection('users')
+          .where('role', isEqualTo: 'student')
+          .get();
+
+      debugPrint(
+          '📋 Found ${studentsSnapshot.docs.length} students in the system');
+
+      List<Map<String, dynamic>> studentsList = [];
+
+      for (var studentDoc in studentsSnapshot.docs) {
+        final studentData = studentDoc.data();
+        final studentId = studentDoc.id;
+
+        studentsList.add({
+          'id': studentId,
+          'name': (studentData['name'] as String?) ?? 'Unknown Student',
+          'email': (studentData['email'] as String?) ?? '',
+          'grade': (studentData['grade'] as String?) ?? 'Not Assigned',
+          'phone': (studentData['phone'] as String?) ?? '',
+          'createdAt': studentData['createdAt'] ?? '',
+        });
+      }
+
+      studentsList
+          .sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+
+      setState(() {
+        _allStudents = studentsList;
+        _totalEnrolledStudents = studentsList.length;
+      });
+
+      debugPrint('✅ Loaded ${_totalEnrolledStudents} enrolled students');
+    } catch (e) {
+      debugPrint('❌ Error loading students: $e');
+      setState(() {
+        _totalEnrolledStudents = 0;
       });
     }
   }
@@ -250,11 +243,14 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
       );
     }
 
+    // Get current user for StreamBuilder
+    final user = _auth.currentUser;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6),
       body: Column(
         children: [
-          // ── Top Header with Gradient ──
+          // Top Header
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -273,7 +269,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Welcome Header ──
+                    // Welcome Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -291,7 +287,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                               ),
                               const SizedBox(height: 6),
                               const Text(
-                                'Track your students\' progress',
+                                "Track your students' progress",
                                 style: TextStyle(
                                   fontSize: 16,
                                   color: Colors.white70,
@@ -300,78 +296,209 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                             ],
                           ),
                         ),
-                        // ── Profile Button ──
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.person,
-                                color: Colors.white, size: 28),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const TeacherProfilePage(),
-                                ),
-                              );
-                            },
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.refresh,
+                                    color: Colors.white, size: 24),
+                                onPressed: () {
+                                  setState(() {
+                                    _isLoading = true;
+                                  });
+                                  _loadTeacherData();
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.person,
+                                    color: Colors.white, size: 28),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const TeacherProfilePage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
-                    // ── Stats Cards - Horizontal Scroll ──
-                    SizedBox(
-                      height: 140,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        children: [
-                          // My Classes Count
-                          _buildStatCard(
-                            icon: Icons.groups_outlined,
-                            count: _totalClasses.toString(),
-                            label: 'My Classes',
-                            color: const Color(0xFF3B82F6),
-                          ),
-                          const SizedBox(width: 16),
-                          // Active Students Count
-                          _buildStatCard(
-                            icon: Icons.school,
-                            count: _activeStudents.toString(),
-                            label: 'Active Students',
-                            color: const Color(0xFF0EA5E9),
-                          ),
-                          const SizedBox(width: 16),
-                          // Assigned Topics Count
-                          _buildStatCard(
-                            icon: Icons.menu_book,
-                            count: _assignedTopics.toString(),
-                            label: 'Assigned Topics',
-                            color: const Color(0xFF1E40AF),
-                          ),
-                          const SizedBox(width: 16),
-                          // Quiz Results Score
-                          _buildStatCard(
-                            icon: Icons.check_circle,
-                            count: '$_overallQuizScore%',
-                            label: 'Quiz Results',
-                            color: const Color(0xFF10B981),
-                          ),
-                        ],
+                    // Assigned Classes Section
+                    if (_classes.isNotEmpty) ...[
+                      const Text(
+                        'My Assigned Classes',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _classes.map((classItem) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${classItem['grade']}',
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${classItem['quizzes']} quizzes',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                    ] else if (_assignedGrades.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.info_outline,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Assigned: ${_assignedGrades.join(", ")}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    const SizedBox(height: 8),
+                    // ✅ STAT CARDS WITH REAL-TIME QUIZ UPDATES
+                    // FIXED: Changed query to use 'teacherId' instead of 'assignedBy'
+                    if (user != null)
+                      StreamBuilder<QuerySnapshot>(
+                        stream: _firestore
+                            .collection('quizzes')
+                            .where('teacherId', isEqualTo: user.uid)
+                            .snapshots(),
+                        builder: (context, snapshot) {
+                          // Show loading state or actual count
+                          final quizCount =
+                              snapshot.hasData ? snapshot.data!.docs.length : 0;
+
+                          debugPrint('📊 Real-time quiz count: $quizCount');
+
+                          return SizedBox(
+                            height: 140,
+                            child: ListView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                _buildStatCard(
+                                  icon: Icons.groups_outlined,
+                                  count: _totalClasses.toString(),
+                                  label: 'My Classes',
+                                  color: const Color(0xFF3B82F6),
+                                ),
+                                const SizedBox(width: 16),
+                                _buildStatCard(
+                                  icon: Icons.school,
+                                  count: _totalEnrolledStudents.toString(),
+                                  label: 'Enrolled Students',
+                                  color: const Color(0xFF0EA5E9),
+                                ),
+                                const SizedBox(width: 16),
+                                GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            const TeacherQuizzesPage(),
+                                      ),
+                                    );
+                                  },
+                                  child: _buildStatCard(
+                                    icon: Icons.assignment_outlined,
+                                    count: quizCount.toString(),
+                                    label: 'Quizzes',
+                                    color: const Color(0xFF1E40AF),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
             ),
           ),
 
-          // ── Scrollable Content ──
+          // Scrollable Content
           Expanded(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -379,7 +506,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── My Classes Section ──
+                  // Student Enrollment Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -387,7 +514,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'My Classes',
+                            'Student Enrollment',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.bold,
@@ -396,7 +523,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '$_totalClasses class${_totalClasses == 1 ? '' : 'es'} assigned',
+                            '$_totalEnrolledStudents student${_totalEnrolledStudents == 1 ? "" : "s"} enrolled',
                             style: const TextStyle(
                               fontSize: 13,
                               color: Color(0xFF6B7280),
@@ -404,15 +531,14 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                           ),
                         ],
                       ),
-                      // View All Button - Only show if there are classes
-                      if (_classes.isNotEmpty)
+                      if (_allStudents.isNotEmpty)
                         TextButton(
                           onPressed: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const TeacherMyClassesPage(),
+                                    AllStudentsPage(students: _allStudents),
                               ),
                             );
                           },
@@ -429,71 +555,22 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Classes List or Empty State ──
-                  _classes.isEmpty
-                      ? _buildNoClassesWidget()
-                      : SizedBox(
-                          height: 200,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: _classes.length,
-                            itemBuilder: (context, index) {
-                              final classData = _classes[index];
-                              return _buildCompactClassCard(
-                                className:
-                                    (classData['name'] as String?) ?? 'Unnamed',
-                                grade: (classData['grade'] as String?) ??
-                                    'Unknown',
-                                studentCount:
-                                    (classData['students'] as int?) ?? 0,
-                                currentTopic: (classData['topic'] as String?) ??
-                                    'No topic',
-                                section:
-                                    (classData['section'] as String?) ?? 'A',
-                                onTap: () {
-                                  debugPrint(
-                                      'Navigating to ${classData['name']}');
-                                  // TODO: Navigate to class details
-                                },
-                              );
-                            },
-                          ),
+                  // Students List - Vertical Layout
+                  _allStudents.isEmpty
+                      ? _buildNoStudentsWidget()
+                      : Column(
+                          children: _allStudents.map((student) {
+                            return _buildStudentCardVertical(
+                              studentName:
+                                  (student['name'] as String?) ?? 'Unknown',
+                              studentGrade: (student['grade'] as String?) ??
+                                  'Not Assigned',
+                              studentEmail: (student['email'] as String?) ?? '',
+                              studentPhone: (student['phone'] as String?) ?? '',
+                              onTap: () {},
+                            );
+                          }).toList(),
                         ),
-
-                  const SizedBox(height: 32),
-
-                  // ── Recent Quiz Results Section ──
-                  if (_quizResults.isNotEmpty) ...[
-                    const Text(
-                      'Recent Quiz Results',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2937),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Quiz Results List ──
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _quizResults.length,
-                      itemBuilder: (context, index) {
-                        final quiz = _quizResults[index];
-                        return _buildQuizResultCard(
-                          title: (quiz['title'] as String?) ?? 'Untitled',
-                          topic: (quiz['topic'] as String?) ?? '',
-                          completedCount: (quiz['completedCount'] as int?) ?? 0,
-                          averageScore: (quiz['averageScore'] as int?) ?? 0,
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
-                  ] else
-                    _buildNoQuizzesWidget(),
                 ],
               ),
             ),
@@ -501,7 +578,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
         ],
       ),
 
-      // ── Bottom Navigation Bar ──
+      // Bottom Navigation Bar
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -543,7 +620,6 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                   label: 'Quizzes',
                   isActive: false,
                   onTap: () {
-                    debugPrint('Quizzes button tapped!');
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -557,7 +633,12 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
                   label: 'Progress',
                   isActive: false,
                   onTap: () {
-                    // TODO: Navigate to progress page
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TeacherAnalyticsPage(),
+                      ),
+                    );
                   },
                 ),
                 _buildNavItem(
@@ -581,7 +662,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
     );
   }
 
-  // ── Stat Card Widget ──
+  // Stat Card Widget
   Widget _buildStatCard({
     required IconData icon,
     required String count,
@@ -633,187 +714,8 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
     );
   }
 
-  // ── Compact Class Card Widget for Horizontal Scrolling ──
-  Widget _buildCompactClassCard({
-    required String className,
-    required String grade,
-    required int studentCount,
-    required String currentTopic,
-    required String section,
-    required VoidCallback onTap,
-  }) {
-    // Get color based on grade
-    Color gradeColor = const Color(0xFF3B82F6);
-    if (grade.contains('5')) gradeColor = const Color(0xFF3B82F6);
-    if (grade.contains('6')) gradeColor = const Color(0xFF0EA5E9);
-    if (grade.contains('7')) gradeColor = const Color(0xFF8B5CF6);
-    if (grade.contains('8')) gradeColor = const Color(0xFFF59E0B);
-    if (grade.contains('9')) gradeColor = const Color(0xFFDC2626);
-    if (grade.contains('10')) gradeColor = const Color(0xFFEC4899);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 280,
-        margin: const EdgeInsets.only(right: 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: gradeColor.withValues(alpha: 0.3),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: gradeColor.withValues(alpha: 0.1),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Top Section - Grade Badge and Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Grade Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: gradeColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.class_,
-                        color: Color(0xFF1F2937),
-                        size: 18,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        grade,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: gradeColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Section Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F4F6),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Sec $section',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-
-            // Class Name
-            Text(
-              className,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2937),
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            const SizedBox(height: 8),
-
-            // Student Count
-            Row(
-              children: [
-                Icon(
-                  Icons.people,
-                  color: gradeColor,
-                  size: 18,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$studentCount student${studentCount == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF6B7280),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Current Topic
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF9FAFB),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFFE5E7EB),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Current Topic',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF6B7280),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentTopic,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: gradeColor,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── No Classes Widget ──
-  Widget _buildNoClassesWidget() {
+  // No Students Widget
+  Widget _buildNoStudentsWidget() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -834,14 +736,14 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: const Icon(
-              Icons.school_outlined,
+              Icons.people_outline,
               color: Color(0xFF3B82F6),
               size: 40,
             ),
           ),
           const SizedBox(height: 16),
           const Text(
-            'No Classes Yet',
+            'No Students Enrolled',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -850,7 +752,7 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Admin hasn\'t assigned any classes to you yet.\n\nTo assign classes, admin needs to:\n1. Create classes in Firebase\n2. Set the "teacherId" field to your user ID',
+            'No students have enrolled in the system yet',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
@@ -878,141 +780,151 @@ class _TeacherHomePageState extends State<TeacherHomePage> {
     );
   }
 
-  // ── No Quizzes Widget ──
-  Widget _buildNoQuizzesWidget() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE5E7EB),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEF3C7),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.quiz_outlined,
-              color: Color(0xFFF59E0B),
-              size: 40,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'No Quiz Results Yet',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1F2937),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Quiz results will appear here once students complete quizzes',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Color(0xFF6B7280),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Quiz Result Card Widget ──
-  Widget _buildQuizResultCard({
-    required String title,
-    required String topic,
-    required int completedCount,
-    required int averageScore,
+  // Student Card Widget - Vertical Version
+  Widget _buildStudentCardVertical({
+    required String studentName,
+    required String studentGrade,
+    required String studentEmail,
+    required String studentPhone,
+    required VoidCallback onTap,
   }) {
-    Color scoreColor;
-    Color progressColor;
+    Color gradeColor = const Color(0xFF3B82F6);
+    if (studentGrade.contains('5')) gradeColor = const Color(0xFF3B82F6);
+    if (studentGrade.contains('6')) gradeColor = const Color(0xFF0EA5E9);
+    if (studentGrade.contains('7')) gradeColor = const Color(0xFF8B5CF6);
+    if (studentGrade.contains('8')) gradeColor = const Color(0xFFF59E0B);
+    if (studentGrade.contains('9')) gradeColor = const Color(0xFFDC2626);
+    if (studentGrade.contains('10')) gradeColor = const Color(0xFFEC4899);
 
-    if (averageScore >= 85) {
-      scoreColor = const Color(0xFF10B981);
-      progressColor = const Color(0xFF10B981);
-    } else if (averageScore >= 70) {
-      scoreColor = const Color(0xFFF59E0B);
-      progressColor = const Color(0xFFF59E0B);
-    } else {
-      scoreColor = const Color(0xFFEF4444);
-      progressColor = const Color(0xFFEF4444);
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: gradeColor.withValues(alpha: 0.3),
+            width: 2,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: gradeColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
                 child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  studentName.isNotEmpty ? studentName[0].toUpperCase() : '?',
+                  style: TextStyle(
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
+                    color: gradeColor,
                   ),
                 ),
               ),
-              Text(
-                '$averageScore%',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: scoreColor,
-                ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          studentName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2937),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: gradeColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          studentGrade,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: gradeColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (studentEmail.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.email_outlined,
+                          size: 14,
+                          color: gradeColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            studentEmail,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF6B7280),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (studentPhone.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.phone_outlined,
+                          size: 14,
+                          color: gradeColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          studentPhone,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF6B7280),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '$completedCount student${completedCount == 1 ? '' : 's'} completed',
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B7280),
             ),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: averageScore > 0 ? (averageScore / 100) : 0,
-              backgroundColor: const Color(0xFFE5E7EB),
-              valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-              minHeight: 8,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  // ── Bottom Nav Item Widget ──
+  // Bottom Nav Item
   Widget _buildNavItem({
     required IconData icon,
     required String label,

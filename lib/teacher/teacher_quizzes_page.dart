@@ -65,6 +65,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
               ),
             )
           : StreamBuilder<QuerySnapshot>(
+              // Query using teacherId to match the saved field
               stream: _firestore
                   .collection('quizzes')
                   .where('teacherId', isEqualTo: user.uid)
@@ -108,7 +109,16 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                   );
                 }
 
-                final quizDocs = snapshot.data?.docs ?? [];
+                var quizDocs = snapshot.data?.docs ?? [];
+
+                // Sort in app instead of in query
+                quizDocs.sort((a, b) {
+                  final aTime = (a['createdAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMicrosecondsSinceEpoch(0);
+                  final bTime = (b['createdAt'] as Timestamp?)?.toDate() ??
+                      DateTime.fromMicrosecondsSinceEpoch(0);
+                  return bTime.compareTo(aTime); // Descending order
+                });
 
                 return SingleChildScrollView(
                   physics: const BouncingScrollPhysics(),
@@ -207,9 +217,12 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                             return _buildQuizCard(
                               quizId: doc.id,
                               title: quiz['title'] ?? 'Untitled Quiz',
+                              grade: quiz['grade'] ?? '',
                               topic: quiz['topic'] ?? '',
-                              questions: quiz['questionCount'] ?? 0,
-                              totalStudents: quiz['totalStudents'] ?? 0,
+                              questionCount: quiz['questionCount'] ?? 0,
+                              studentCount: quiz['studentCount'] ??
+                                  quiz['totalStudents'] ??
+                                  0,
                               createdAt: quiz['createdAt'] as Timestamp?,
                               onTap: () {
                                 debugPrint('Viewing quiz: ${quiz['title']}');
@@ -341,9 +354,10 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
   Widget _buildQuizCard({
     required String quizId,
     required String title,
+    required String grade,
     required String topic,
-    required int questions,
-    required int totalStudents,
+    required int questionCount,
+    required int studentCount,
     required Timestamp? createdAt,
     required VoidCallback onTap,
     required VoidCallback onEdit,
@@ -386,7 +400,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Icon(
-                    Icons.quiz,
+                    Icons.assignment,
                     color: Colors.white,
                     size: 24,
                   ),
@@ -465,34 +479,58 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                 ),
               ],
             ),
-            if (topic.isNotEmpty) ...[
+            if (grade.isNotEmpty || topic.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.label,
-                      size: 14,
-                      color: Color(0xFF16A34A),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      topic,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF16A34A),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (grade.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDCFCE7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.school,
+                            size: 14,
+                            color: Color(0xFF16A34A),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            grade,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  if (topic.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        topic,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF3B82F6),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
             const SizedBox(height: 16),
@@ -510,7 +548,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
-                          Icons.question_answer,
+                          Icons.help_outline,
                           color: Color(0xFF3B82F6),
                           size: 20,
                         ),
@@ -520,7 +558,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '$questions',
+                            '$questionCount',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -549,7 +587,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
-                          Icons.people,
+                          Icons.people_outline,
                           color: Color(0xFFF59E0B),
                           size: 20,
                         ),
@@ -559,7 +597,7 @@ class _TeacherQuizzesPageState extends State<TeacherQuizzesPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '$totalStudents',
+                            '$studentCount',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,

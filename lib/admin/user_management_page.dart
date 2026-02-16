@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 // Import necessary pages for navigation
 import 'add_teacher_page.dart';
+import 'analytics_page.dart';
 import 'content_management.dart';
 import 'developer_tools_page.dart';
 import 'manage_teacher_grades_page.dart';
@@ -45,12 +46,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
         // Show Content Management inline
         break;
       case 3:
-        // Navigate to Analytics - Coming soon
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Analytics page - Coming soon!')),
-        );
-        setState(() {
-          _selectedIndex = 1;
+        // Navigate to Analytics Page
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AnalyticsPage(),
+          ),
+        ).then((_) {
+          if (mounted) {
+            setState(() {
+              _selectedIndex = 1;
+            });
+          }
         });
         break;
       case 4:
