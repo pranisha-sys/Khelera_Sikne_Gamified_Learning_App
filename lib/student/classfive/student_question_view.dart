@@ -5,6 +5,73 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// ─────────────────────────────────────────────────────────────
+//  DEFAULT SAMPLE QUESTIONS — used when Firestore has none
+// ─────────────────────────────────────────────────────────────
+const List<Map<String, dynamic>> _sampleQuestions = [
+  {
+    'question': 'What is matter?',
+    'options': [
+      'Anything that has mass and takes up space',
+      'Only things you can see',
+      'Only liquids and gases',
+      'Things without any weight',
+    ],
+    'correctAnswer': 0,
+    'explanation':
+        'Matter is anything that has mass and occupies space — solids, liquids, and gases are all matter!',
+  },
+  {
+    'question': 'Which of the following is NOT a state of matter?',
+    'options': ['Solid', 'Liquid', 'Gas', 'Fire'],
+    'correctAnswer': 3,
+    'explanation':
+        'Fire is a chemical reaction (plasma-like), not a traditional state of matter. The three main states are solid, liquid, and gas.',
+  },
+  {
+    'question': 'What happens to water molecules when water freezes?',
+    'options': [
+      'They move faster',
+      'They disappear',
+      'They slow down and lock into place',
+      'They change into gas',
+    ],
+    'correctAnswer': 2,
+    'explanation':
+        'When water freezes, molecules lose energy, slow down, and arrange into a fixed crystal structure — that\'s ice!',
+  },
+  {
+    'question': 'Which state of matter has a definite shape AND volume?',
+    'options': ['Gas', 'Liquid', 'Solid', 'Plasma'],
+    'correctAnswer': 2,
+    'explanation':
+        'Solids have both a fixed shape and volume because their particles are tightly packed and don\'t move freely.',
+  },
+  {
+    'question': 'Air is an example of which state of matter?',
+    'options': [
+      'Solid',
+      'Liquid',
+      'Gas',
+      'Mixture of solid and liquid',
+    ],
+    'correctAnswer': 2,
+    'explanation':
+        'Air is a gas! Gas particles move freely and spread out to fill any container.',
+  },
+];
+
+// Option gradients matching the screenshot: purple, blue, pink, yellow
+const List<List<Color>> _optionGradients = [
+  [Color(0xFF7C4DFF), Color(0xFFB388FF)], // purple
+  [Color(0xFF1E88E5), Color(0xFF64B5F6)], // blue
+  [Color(0xFFE91E63), Color(0xFFFF80AB)], // pink
+  [Color(0xFFF9A825), Color(0xFFFFD54F)], // yellow
+];
+
+// Option icon emojis matching the screenshot
+const List<String> _optionEmojis = ['🎯', '💡', '⭐', '🌙'];
+
 class StudentQuestionView extends StatefulWidget {
   final String grade;
   final String topicId;
@@ -30,9 +97,9 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   bool showFeedback = false;
   int score = 0;
   List<Map<String, dynamic>> answeredQuestions = [];
-
-  // New: Track which options are visible
   List<bool> optionsVisible = [false, false, false, false];
+
+  bool _usedFallback = false;
 
   late AnimationController _confettiController;
   late AnimationController _feedbackAnimationController;
@@ -43,6 +110,8 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   late Animation<double> _scoreAnimation;
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
 
   @override
   void initState() {
@@ -52,7 +121,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
         AnimationController(duration: const Duration(seconds: 2), vsync: this);
 
     _feedbackAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _feedbackAnimation = CurvedAnimation(
@@ -61,7 +130,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
 
     _cardAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _cardSlideAnimation = Tween<Offset>(
@@ -73,7 +142,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     ));
 
     _scoreAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
     _scoreAnimation = CurvedAnimation(
@@ -82,12 +151,18 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
 
     _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
     _shakeAnimation = Tween<double>(begin: 0, end: 10).animate(
-      CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn),
-    );
+        CurvedAnimation(parent: _shakeController, curve: Curves.elasticIn));
+
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
+        CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
 
     fetchQuestions();
   }
@@ -99,19 +174,18 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     _cardAnimationController.dispose();
     _scoreAnimationController.dispose();
     _shakeController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  FETCH
+  // ─────────────────────────────────────────────────────────────
   Future<void> fetchQuestions() async {
     try {
       setState(() => loading = true);
+      List<Map<String, dynamic>> fetched = [];
 
-      print('========== FETCHING QUESTIONS ==========');
-      print('Grade: ${widget.grade}');
-      print('Topic ID: ${widget.topicId}');
-      print('=======================================');
-
-      // Fetch the topic document directly
       final topicDoc = await FirebaseFirestore.instance
           .collection('grades')
           .doc(widget.grade)
@@ -119,162 +193,186 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
           .doc(widget.topicId)
           .get();
 
-      print('Topic exists: ${topicDoc.exists}');
-
       if (topicDoc.exists) {
         final data = topicDoc.data()!;
-        print('Topic data: $data');
-
-        // Get questions from the array field
-        final questionsArray = data['questions'] as List<dynamic>? ?? [];
-
-        print('========== RESULTS ==========');
-        print('Questions found: ${questionsArray.length}');
-
-        if (questionsArray.isEmpty) {
-          print('⚠️ WARNING: No questions in array!');
-        } else {
-          print('✅ Questions loaded successfully:');
-          for (var i = 0; i < questionsArray.length; i++) {
-            final q = questionsArray[i];
-            print('  - Question ${i + 1}: ${q['question']}');
-            print('    Options: ${q['options']}');
-            print('    Correct Answer: ${q['correctAnswer']}');
+        final inlineArr = data['questions'] as List<dynamic>?;
+        if (inlineArr != null && inlineArr.isNotEmpty) {
+          fetched = _parseQuestionsFromArray(inlineArr);
+        }
+        if (fetched.isEmpty) {
+          final alt = (data['quiz'] ?? data['mcqs']) as List<dynamic>?;
+          if (alt != null && alt.isNotEmpty) {
+            fetched = _parseQuestionsFromArray(alt);
           }
         }
-        print('============================');
+      }
 
-        // Convert to the format your app expects
-        final fetchedQuestions = questionsArray.asMap().entries.map((entry) {
-          final index = entry.key;
-          final q = entry.value as Map<String, dynamic>;
+      if (fetched.isEmpty) {
+        final snap = await FirebaseFirestore.instance
+            .collection('grades')
+            .doc(widget.grade)
+            .collection('topics')
+            .doc(widget.topicId)
+            .collection('questions')
+            .orderBy('order', descending: false)
+            .get();
 
-          // Convert the teacher's format to student's expected format
-          final options =
-              (q['options'] as List<dynamic>).asMap().entries.map((optEntry) {
+        if (snap.docs.isNotEmpty) {
+          fetched = snap.docs.map((doc) {
+            final q = doc.data();
+            final rawOptions = q['options'] as List<dynamic>? ?? [];
+            final correctIdx =
+                q['correctAnswer'] ?? q['correct_answer'] ?? q['answer'] ?? 0;
+            final options = rawOptions
+                .asMap()
+                .entries
+                .map((e) => {
+                      'text': e.value.toString(),
+                      'correct': e.key == correctIdx,
+                      'emoji': _getEmojiForOption(e.key),
+                    })
+                .toList();
             return {
-              'text': optEntry.value.toString(),
-              'correct': optEntry.key == (q['correctAnswer'] ?? 0),
-              'emoji': _getEmojiForOption(optEntry.key),
+              'id': doc.id,
+              'question': q['question'] ?? q['text'] ?? '',
+              'options': options,
+              'explanation': q['explanation'] ?? 'Amazing effort!',
+              'order': q['order'] ?? 0,
             };
           }).toList();
-
-          return {
-            'id': 'question_$index',
-            'question': q['question'] ?? '',
-            'options': options,
-            'explanation': q['explanation'] ?? 'Great effort!',
-            'order': index + 1,
-          };
-        }).toList();
-
-        setState(() {
-          questions = fetchedQuestions;
-          loading = false;
-        });
-
-        if (questions.isNotEmpty) {
-          _cardAnimationController.forward();
-          _showOptionsSequentially();
         }
-      } else {
-        print('❌ Topic document does not exist!');
-        setState(() {
-          questions = [];
-          loading = false;
-        });
       }
-    } catch (e, stackTrace) {
-      print('❌ ERROR fetching questions: $e');
-      print('Stack trace: $stackTrace');
-      setState(() => loading = false);
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            title: Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.red.shade400),
-                const SizedBox(width: 8),
-                const Text('Error'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Could not load questions',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Error: $e',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('Go Back'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  fetchQuestions();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C3AED),
-                ),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        );
+      if (fetched.isEmpty) {
+        _usedFallback = true;
+        fetched = await _uploadAndReturnSampleQuestions();
+      }
+
+      setState(() {
+        questions = fetched;
+        loading = false;
+      });
+
+      if (questions.isNotEmpty) {
+        _cardAnimationController.forward();
+        _showOptionsSequentially();
+      }
+    } catch (e, stack) {
+      debugPrint('❌ fetchQuestions error: $e\n$stack');
+      _usedFallback = true;
+      final fallback = _buildLocalSampleQuestions();
+      setState(() {
+        questions = fallback;
+        loading = false;
+      });
+      if (questions.isNotEmpty) {
+        _cardAnimationController.forward();
+        _showOptionsSequentially();
       }
     }
   }
 
-  // Helper method to get emojis for options
-  String _getEmojiForOption(int index) {
-    const emojis = ['🎯', '💡', '🌟', '✨'];
-    return index < emojis.length ? emojis[index] : '⭐';
+  Future<List<Map<String, dynamic>>> _uploadAndReturnSampleQuestions() async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final colRef = FirebaseFirestore.instance
+          .collection('grades')
+          .doc(widget.grade)
+          .collection('topics')
+          .doc(widget.topicId)
+          .collection('questions');
+
+      for (int i = 0; i < _sampleQuestions.length; i++) {
+        final q = _sampleQuestions[i];
+        final docRef = colRef.doc('q_${i + 1}');
+        batch.set(docRef, {
+          'order': i + 1,
+          'question': q['question'],
+          'options': q['options'],
+          'correctAnswer': q['correctAnswer'],
+          'explanation': q['explanation'],
+          'createdAt': FieldValue.serverTimestamp(),
+          'autoGenerated': true,
+        });
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('⚠️ Could not upload samples: $e');
+    }
+    return _buildLocalSampleQuestions();
   }
 
-  // Show options one by one with delay
-  void _showOptionsSequentially() {
-    setState(() {
-      optionsVisible = [false, false, false, false];
-    });
+  List<Map<String, dynamic>> _buildLocalSampleQuestions() {
+    return _sampleQuestions.asMap().entries.map((entry) {
+      final i = entry.key;
+      final q = entry.value;
+      final options = (q['options'] as List<String>)
+          .asMap()
+          .entries
+          .map((e) => {
+                'text': e.value,
+                'correct': e.key == (q['correctAnswer'] as int),
+                'emoji': _getEmojiForOption(e.key),
+              })
+          .toList();
+      return {
+        'id': 'sample_$i',
+        'question': q['question'] as String,
+        'options': options,
+        'explanation': q['explanation'] as String,
+        'order': i + 1,
+      };
+    }).toList();
+  }
 
+  List<Map<String, dynamic>> _parseQuestionsFromArray(List<dynamic> arr) {
+    return arr.asMap().entries.map((entry) {
+      final i = entry.key;
+      final q = entry.value as Map<String, dynamic>;
+      final correctIndex =
+          q['correctAnswer'] ?? q['correct_answer'] ?? q['answer'] ?? 0;
+      final options = (q['options'] as List<dynamic>? ?? [])
+          .asMap()
+          .entries
+          .map((e) => {
+                'text': e.value.toString(),
+                'correct': e.key == correctIndex,
+                'emoji': _getEmojiForOption(e.key),
+              })
+          .toList();
+      return {
+        'id': 'q_$i',
+        'question': q['question'] ?? q['text'] ?? '',
+        'options': options,
+        'explanation': q['explanation'] ?? 'Amazing effort!',
+        'order': i + 1,
+      };
+    }).toList();
+  }
+
+  String _getEmojiForOption(int index) {
+    return index < _optionEmojis.length ? _optionEmojis[index] : '⭐';
+  }
+
+  void _showOptionsSequentially() {
+    setState(() => optionsVisible = [false, false, false, false]);
     for (int i = 0; i < 4; i++) {
-      Future.delayed(Duration(milliseconds: 300 * (i + 1)), () {
-        if (mounted) {
-          setState(() {
-            if (i < optionsVisible.length) {
-              optionsVisible[i] = true;
-            }
-          });
-        }
+      Future.delayed(Duration(milliseconds: 180 * (i + 1)), () {
+        if (mounted) setState(() => optionsVisible[i] = true);
       });
     }
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Answer handling
+  // ─────────────────────────────────────────────────────────────
   Future<void> saveAnswer(
       String questionId, bool isCorrect, int answerIndex) async {
     try {
-      final submissionRef = FirebaseFirestore.instance
+      final ref = FirebaseFirestore.instance
           .collection('submissions')
           .doc('${widget.studentId}_${widget.grade}_${widget.topicId}');
-
-      await submissionRef.set({
+      await ref.set({
         'studentId': widget.studentId,
         'grade': widget.grade,
         'topicId': widget.topicId,
@@ -283,51 +381,40 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
             'selectedAnswer': answerIndex,
             'correct': isCorrect,
             'timestamp': FieldValue.serverTimestamp(),
-            'score': isCorrect ? 5 : 0,
+            'score': isCorrect ? 10 : 0,
           }
         },
         'totalScore': score,
         'lastUpdated': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
-      print('Error saving answer: $e');
+      debugPrint('Error saving answer: $e');
     }
   }
 
   void handleAnswerSelect(int index) {
     if (showFeedback) return;
-
     setState(() {
       selectedAnswer = index;
       showFeedback = true;
     });
-
     _feedbackAnimationController.forward(from: 0);
 
-    final currentQ = questions[currentQuestion];
-    final options = List<Map<String, dynamic>>.from(currentQ['options']);
-    final isCorrect = options[index]['correct'] ?? false;
-
+    final isCorrect = (questions[currentQuestion]['options'] as List)[index]
+            ['correct'] ??
+        false;
     if (isCorrect) {
       setState(() => score += 10);
-      _showConfetti();
+      _confettiController.forward(from: 0);
       _scoreAnimationController.forward(from: 0);
     } else {
       _shakeController.forward(from: 0);
     }
-
-    saveAnswer(currentQ['id'], isCorrect, index);
-
-    setState(() {
-      answeredQuestions.add({
-        'questionId': currentQ['id'],
-        'correct': isCorrect,
-      });
-    });
-  }
-
-  void _showConfetti() {
-    _confettiController.forward(from: 0);
+    saveAnswer(questions[currentQuestion]['id'], isCorrect, index);
+    setState(() => answeredQuestions.add({
+          'questionId': questions[currentQuestion]['id'],
+          'correct': isCorrect,
+        }));
   }
 
   void handleNext() {
@@ -343,603 +430,306 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     }
   }
 
-  // FIXED: Save quiz stats to both Firebase and SharedPreferences
   Future<void> _saveQuizStats() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        debugPrint('❌ No user logged in');
-        return;
-      }
-
+      if (user == null) return;
       final uid = user.uid;
-      final firestore = FirebaseFirestore.instance;
-
       final correctAnswers =
           answeredQuestions.where((a) => a['correct']).length;
-      final coinsEarned = correctAnswers * 10; // 10 coins per correct answer
+      final coinsEarned = correctAnswers * 10;
       final percentage = (correctAnswers / questions.length * 100).round();
 
-      // Reference to user's stats document
-      final statsRef = firestore
+      final statsRef = FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .collection('quiz_stats')
           .doc('stats');
 
-      // Get current stats from Firestore
       final statsDoc = await statsRef.get();
-
       if (statsDoc.exists) {
-        // Update existing stats
-        final currentData = statsDoc.data()!;
-        final currentTotalQuizzes = currentData['total_quizzes'] ?? 0;
-        final currentTotalCoins = currentData['total_coins'] ?? 0;
-        final currentTotalQuestions = currentData['total_questions'] ?? 0;
-        final currentCompletedTopics =
-            List<String>.from(currentData['completed_topics'] ?? []);
-
-        // Add current topic if not already completed
-        if (!currentCompletedTopics.contains(widget.topicId)) {
-          currentCompletedTopics.add(widget.topicId);
-        }
-
-        // Update Firestore
+        final d = statsDoc.data()!;
+        final topics = List<String>.from(d['completed_topics'] ?? []);
+        if (!topics.contains(widget.topicId)) topics.add(widget.topicId);
         await statsRef.update({
-          'total_quizzes': currentTotalQuizzes + 1,
-          'total_coins': currentTotalCoins + coinsEarned,
-          'total_questions': currentTotalQuestions + questions.length,
+          'total_quizzes': (d['total_quizzes'] ?? 0) + 1,
+          'total_coins': (d['total_coins'] ?? 0) + coinsEarned,
+          'total_questions': (d['total_questions'] ?? 0) + questions.length,
           'last_quiz_score': coinsEarned,
           'last_quiz_percentage': percentage,
-          'completed_topics': currentCompletedTopics,
+          'completed_topics': topics,
           'last_updated': FieldValue.serverTimestamp(),
         });
-
-        debugPrint('✅ Quiz stats saved to Firestore:');
-        debugPrint('  - Coins earned: $coinsEarned');
-        debugPrint('  - Total quizzes: ${currentTotalQuizzes + 1}');
-        debugPrint('  - Total coins: ${currentTotalCoins + coinsEarned}');
-        debugPrint('  - Completed topics: $currentCompletedTopics');
       } else {
-        // Create new stats document for first quiz
-        final completedTopics = [widget.topicId];
-
         await statsRef.set({
           'total_quizzes': 1,
           'total_coins': coinsEarned,
           'total_questions': questions.length,
           'last_quiz_score': coinsEarned,
           'last_quiz_percentage': percentage,
-          'completed_topics': completedTopics,
+          'completed_topics': [widget.topicId],
           'created_at': FieldValue.serverTimestamp(),
           'last_updated': FieldValue.serverTimestamp(),
         });
-
-        debugPrint('✅ Created initial quiz stats in Firestore');
       }
 
-      // Also save to SharedPreferences for offline backup
-      await _saveToSharedPreferences(uid, coinsEarned, percentage);
-    } catch (e) {
-      debugPrint('❌ Error saving quiz stats: $e');
-    }
-  }
-
-  Future<void> _saveToSharedPreferences(
-      String uid, int coinsEarned, int percentage) async {
-    try {
       final prefs = await SharedPreferences.getInstance();
-
-      // Get current stats
-      int currentTotalQuizzes = prefs.getInt('total_quizzes_$uid') ?? 0;
-      int currentTotalCoins = prefs.getInt('total_coins_$uid') ?? 0;
-      int currentTotalQuestions = prefs.getInt('total_questions_$uid') ?? 0;
-      List<String> completedTopics =
-          prefs.getStringList('completed_topics_$uid') ?? [];
-
-      // Add current topic if not already there
-      if (!completedTopics.contains(widget.topicId)) {
-        completedTopics.add(widget.topicId);
-      }
-
-      // Update stats
-      await prefs.setInt('total_quizzes_$uid', currentTotalQuizzes + 1);
-      await prefs.setInt('total_coins_$uid', currentTotalCoins + coinsEarned);
       await prefs.setInt(
-          'total_questions_$uid', currentTotalQuestions + questions.length);
-      await prefs.setInt('last_quiz_score_$uid', coinsEarned);
-      await prefs.setInt('last_quiz_percentage_$uid', percentage);
-      await prefs.setStringList('completed_topics_$uid', completedTopics);
-
-      debugPrint('💾 Synced to SharedPreferences');
+          'total_quizzes_$uid', (prefs.getInt('total_quizzes_$uid') ?? 0) + 1);
+      await prefs.setInt('total_coins_$uid',
+          (prefs.getInt('total_coins_$uid') ?? 0) + coinsEarned);
     } catch (e) {
-      debugPrint('❌ Error saving to SharedPreferences: $e');
+      debugPrint('Error saving stats: $e');
     }
   }
 
   void handleFinish() async {
-    // Save quiz stats first
     await _saveQuizStats();
-
-    final correctAnswers = answeredQuestions.where((a) => a['correct']).length;
-    final percentage = (correctAnswers / questions.length * 100).round();
-
+    final correct = answeredQuestions.where((a) => a['correct']).length;
+    final pct = (correct / questions.length * 100).round();
     if (!mounted) return;
+    _showResultsDialog(correct, pct);
+  }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Results dialog
+  // ─────────────────────────────────────────────────────────────
+  void _showResultsDialog(int correct, int pct) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-        backgroundColor: Colors.white,
-        title: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                ),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.emoji_events,
-                size: 48,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Quiz Complete!',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              percentage >= 80
-                  ? '🎉 Outstanding!'
-                  : percentage >= 60
-                      ? '👍 Great Job!'
-                      : '💪 Keep Practicing!',
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFFEF3C7),
-                    const Color(0xFFFDE68A).withOpacity(0.5)
+      barrierColor: Colors.black45,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        child: Container(
+          padding: const EdgeInsets.all(26),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: Colors.white,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 150,
+                height: 120,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ...List.generate(6, (i) {
+                      final angle = i * pi / 3;
+                      return Positioned(
+                        left: 55 + cos(angle) * 44,
+                        top: 35 + sin(angle) * 38,
+                        child: Text(['⭐', '✨', '🌟', '💫', '⭐', '✨'][i],
+                            style: const TextStyle(fontSize: 16)),
+                      );
+                    }),
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                            colors: [Color(0xFFFFD700), Color(0xFFFF8C00)]),
+                        boxShadow: [
+                          BoxShadow(
+                              color: const Color(0xFFFFD700)
+                                  .withValues(alpha: 0.5),
+                              blurRadius: 22)
+                        ],
+                      ),
+                      child: const Center(
+                          child: Text('🏆', style: TextStyle(fontSize: 42))),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFFBBF24), width: 2),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('🪙', style: TextStyle(fontSize: 32)),
-                      const SizedBox(width: 12),
-                      Text(
-                        '$score',
-                        style: const TextStyle(
-                          fontSize: 48,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFFFBBF24),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    '$correctAnswers out of ${questions.length} correct',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '$percentage% Score',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 14),
+              const Text('Quiz Complete!',
+                  style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1A1A2E))),
+              const SizedBox(height: 6),
+              Text(
+                pct >= 80
+                    ? '🎉 You\'re a Star!'
+                    : pct >= 60
+                        ? '👍 Great Work!'
+                        : '💪 Keep Going!',
+                style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF9C27B0),
+                    fontWeight: FontWeight.w600),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          Column(
-            children: [
-              // Continue Learning Button - Goes to PlayAndLearnPage with refresh
-              Container(
-                width: double.infinity,
-                height: 56,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF9C27B0), Color(0xFFEC4899)],
+              if (_usedFallback) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFFCC02)),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(context,
-                          true); // Go back to PlayAndLearnPage with refresh signal
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: const Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Continue Learning',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text('🚀', style: TextStyle(fontSize: 20)),
-                        ],
-                      ),
-                    ),
+                  child: const Text(
+                    '📝 Sample questions were used — your teacher can add custom ones anytime!',
+                    style: TextStyle(fontSize: 11, color: Color(0xFF795548)),
+                    textAlign: TextAlign.center,
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              // Finish Quiz Button - Goes to Main Page
+              ],
+              const SizedBox(height: 18),
               Container(
-                width: double.infinity,
-                height: 56,
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
+                  color: const Color(0xFFF3E5F5),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(
-                    color: const Color(0xFF10B981),
-                    width: 2,
-                  ),
-                  borderRadius: BorderRadius.circular(16),
+                      color: const Color(0xFF9C27B0).withValues(alpha: 0.2)),
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pop(context); // Close dialog
-                      Navigator.pop(
-                          context, true); // Go back to PlayAndLearnPage
-                      Navigator.pop(
-                          context, true); // Go back to main with refresh
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: const Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('🏆', style: TextStyle(fontSize: 20)),
-                          SizedBox(width: 8),
-                          Text(
-                            'Finish Quiz',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF10B981),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _statChip('🪙', '$score', 'coins'),
+                    _vDivider(),
+                    _statChip('✅', '$correct/${questions.length}', 'correct'),
+                    _vDivider(),
+                    _statChip('📊', '$pct%', 'score'),
+                  ],
                 ),
+              ),
+              const SizedBox(height: 22),
+              _actionBtn(
+                'Continue Learning 🚀',
+                const Color(0xFF7C4DFF),
+                const Color(0xFFD500F9),
+                () {
+                  Navigator.pop(context);
+                  Navigator.pop(context, true);
+                },
+              ),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context, true);
+                  Navigator.pop(context, true);
+                },
+                child: const Text('Back to Home 🏠',
+                    style: TextStyle(color: Color(0xFF9E9EC8), fontSize: 14)),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Color getOptionColor(int index) {
-    if (!showFeedback) {
-      final colors = [
-        const Color(0xFF8B5CF6), // Purple
-        const Color(0xFF3B82F6), // Blue
-        const Color(0xFFEC4899), // Pink
-        const Color(0xFFFBBF24), // Yellow
-      ];
-      return colors[index % colors.length];
-    }
+  Widget _statChip(String emoji, String value, String label) {
+    return Column(children: [
+      Text(emoji, style: const TextStyle(fontSize: 20)),
+      const SizedBox(height: 4),
+      Text(value,
+          style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E))),
+      Text(label,
+          style: const TextStyle(fontSize: 11, color: Color(0xFF9E9EC8))),
+    ]);
+  }
 
+  Widget _vDivider() =>
+      Container(width: 1, height: 36, color: const Color(0xFFE0D4F0));
+
+  Widget _actionBtn(String text, Color c1, Color c2, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(colors: [c1, c2]),
+          boxShadow: [
+            BoxShadow(
+                color: c1.withValues(alpha: 0.38),
+                blurRadius: 12,
+                offset: const Offset(0, 5))
+          ],
+        ),
+        child: Center(
+            child: Text(text,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold))),
+      ),
+    );
+  }
+
+  List<Color> _getOptionColors(int index) {
+    if (!showFeedback) return _optionGradients[index % _optionGradients.length];
     final options =
         List<Map<String, dynamic>>.from(questions[currentQuestion]['options']);
     if (options[index]['correct'] ?? false) {
-      return const Color(0xFF10B981); // Green
+      return [const Color(0xFF00897B), const Color(0xFF26C6DA)];
     }
-
     if (selectedAnswer == index) {
-      return const Color(0xFFEF4444); // Red
+      return [const Color(0xFFE53935), const Color(0xFFFF5252)];
     }
-
-    return Colors.grey.shade400;
+    return [const Color(0xFFBDBDBD), const Color(0xFF9E9E9E)];
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  BUILD
+  // ─────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isTablet = size.width > 600;
-    final maxWidth = isTablet ? 800.0 : size.width;
 
-    if (loading) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFF0F9FF), Color(0xFFFDF4FF), Color(0xFFFFF7ED)],
-            ),
-          ),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: const CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
-                    strokeWidth: 3,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  '✨ Preparing your quiz...',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2937),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Get ready for some fun! 🎉',
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (questions.isEmpty) {
-      return Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFF0F9FF), Color(0xFFFDF4FF), Color(0xFFFFF7ED)],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: Icon(Icons.arrow_back,
-                              color: Colors.grey.shade800),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(40),
-                      margin: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(32),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 30,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFFEF3C7), Color(0xFFFDE68A)],
-                              ),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Text('📚',
-                                style: TextStyle(fontSize: 64)),
-                          ),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'No questions yet! 😊',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2937),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Your teacher is preparing awesome questions for you!',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
-                              height: 1.5,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 24),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFDDD6FE), Color(0xFFC4B5FD)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              '💡 Check back soon!',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF7C3AED),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    if (loading) return _buildLoading();
+    if (questions.isEmpty) return _buildEmpty();
 
     final progress = (currentQuestion + 1) / questions.length;
     final currentQ = questions[currentQuestion];
     final options = List<Map<String, dynamic>>.from(currentQ['options']);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFE8EAF6),
       body: Stack(
         children: [
-          // Enhanced Gradient Background
+          // Subtle gradient background
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFF0F9FF),
-                  Color(0xFFFDF4FF),
-                  Color(0xFFFFF7ED)
-                ],
+                colors: [Color(0xFFB2EBF2), Color(0xFFE8EAF6)],
               ),
             ),
           ),
-
-          // Animated Background Blobs
-          Positioned(
-            top: size.height * 0.1,
-            left: -30,
-            child: _AnimatedBlob(
-              color: const Color(0xFFDDD6FE).withOpacity(0.3),
-              size: isTablet ? 180 : 120,
-            ),
-          ),
-          Positioned(
-            top: size.height * 0.2,
-            right: -40,
-            child: _AnimatedBlob(
-              color: const Color(0xFFFEF3C7).withOpacity(0.3),
-              size: isTablet ? 160 : 100,
-              delay: 2,
-            ),
-          ),
-          Positioned(
-            bottom: size.height * 0.1,
-            left: size.width * 0.3,
-            child: _AnimatedBlob(
-              color: const Color(0xFFFCCBCA).withOpacity(0.3),
-              size: isTablet ? 140 : 90,
-              delay: 3,
-            ),
-          ),
-
-          // Confetti
           if (_confettiController.isAnimating)
             Align(
               alignment: Alignment.topCenter,
               child: _ConfettiWidget(controller: _confettiController),
             ),
-
-          // Main Content
           SafeArea(
-            child: Center(
-              child: Container(
-                constraints: BoxConstraints(maxWidth: maxWidth),
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.all(isTablet ? 32 : 20),
-                  child: Column(
-                    children: [
-                      // Header
-                      _buildHeader(progress, isTablet),
-                      SizedBox(height: isTablet ? 40 : 24),
-
-                      // Question Card
-                      SlideTransition(
-                        position: _cardSlideAnimation,
-                        child: _buildQuestionCard(currentQ, options, isTablet),
-                      ),
-                      SizedBox(height: isTablet ? 24 : 16),
-                    ],
+            child: SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                  isTablet ? 24 : 16, 16, isTablet ? 24 : 16, 32),
+              child: Column(
+                children: [
+                  _buildHeader(progress, isTablet),
+                  const SizedBox(height: 16),
+                  SlideTransition(
+                    position: _cardSlideAnimation,
+                    child: _buildQuestionCard(currentQ, options, isTablet),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -948,438 +738,365 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
+  // ─────────────────────────────────────────────────────────────
+  //  Header — matches screenshot: back | title pill | score
+  // ─────────────────────────────────────────────────────────────
   Widget _buildHeader(double progress, bool isTablet) {
     return Column(
       children: [
+        // Row: back button | title pill | score badge
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Back Button
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                icon: Icon(Icons.arrow_back, color: Colors.grey.shade800),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-
-            // Title
+            // Back button
+            _backButton(() => Navigator.pop(context)),
+            const SizedBox(width: 10),
+            // Centered title pill
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 12),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '🎯 States of Matter Quiz',
-                        style: TextStyle(
-                          fontSize: isTablet ? 20 : 18,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        widget.grade,
-                        style: TextStyle(
-                          fontSize: isTablet ? 14 : 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF8B5CF6),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Score with Bounce Animation
-            ScaleTransition(
-              scale: _scoreAnimation,
               child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isTablet ? 16 : 12,
-                  vertical: isTablet ? 12 : 10,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFFFBBF24), Color(0xFFF59E0B)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(100),
+                      colors: [Color(0xFF7C4DFF), Color(0xFFD500F9)]),
+                  borderRadius: BorderRadius.circular(28),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFBBF24).withOpacity(0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
+                        color: const Color(0xFF7C4DFF).withValues(alpha: 0.35),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4))
                   ],
                 ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('🪙', style: TextStyle(fontSize: 22)),
-                    SizedBox(width: isTablet ? 8 : 6),
-                    Text(
-                      '$score',
-                      style: TextStyle(
-                        fontSize: isTablet ? 22 : 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    const Text('🎯', style: TextStyle(fontSize: 17)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        widget.topicId.isNotEmpty ? widget.topicId : 'Quiz',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Score badge
+            ScaleTransition(
+              scale: _scoreAnimation,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFFFFD700), Color(0xFFFF8C00)]),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.45),
+                        blurRadius: 12)
+                  ],
+                ),
+                child: Row(children: [
+                  const Text('🪙', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 4),
+                  Text('$score',
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                ]),
               ),
             ),
           ],
         ),
-        SizedBox(height: isTablet ? 24 : 20),
 
-        // Enhanced Progress Bar
+        // Grade label
+        const SizedBox(height: 8),
         Container(
-          height: isTablet ? 18 : 16,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(100),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            color: Colors.white.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(10),
           ),
-          child: Stack(
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 600),
-                curve: Curves.easeOutCubic,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(100),
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF8B5CF6),
-                      Color(0xFFEC4899),
-                      Color(0xFFFBBF24)
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+          child: Text(
+            widget.grade,
+            style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF5C6BC0),
+                fontWeight: FontWeight.w700),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Progress bar + label
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Stack(children: [
+                  Container(
+                      height: 10, color: Colors.white.withValues(alpha: 0.6)),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeOutCubic,
+                    height: 10,
+                    width: (MediaQuery.of(context).size.width - 32) *
+                        ((currentQuestion + 1) / questions.length),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF7C4DFF), Color(0xFFD500F9)]),
+                      boxShadow: [
+                        BoxShadow(
+                            color:
+                                const Color(0xFF7C4DFF).withValues(alpha: 0.5),
+                            blurRadius: 6)
+                      ],
                     ),
-                  ],
-                ),
-                width: MediaQuery.of(context).size.width * progress * 0.85,
-              ),
-              Center(
-                child: Text(
-                  '📝 Question ${currentQuestion + 1} of ${questions.length}',
-                  style: TextStyle(
-                    fontSize: isTablet ? 13 : 11,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF1F2937),
                   ),
-                ),
+                ]),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '📝 Question ${currentQuestion + 1} of ${questions.length}',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF5C6BC0)),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildQuestionCard(Map<String, dynamic> currentQ,
+  // ─────────────────────────────────────────────────────────────
+  //  Question card — matches screenshot layout
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildQuestionCard(Map<String, dynamic> q,
       List<Map<String, dynamic>> options, bool isTablet) {
-    return Container(
-      padding: EdgeInsets.all(isTablet ? 32 : 24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(isTablet ? 32 : 28),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // White question card
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.07),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6)),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Question Number Badge
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // "Question N" pill label
               Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isTablet ? 20 : 16,
-                  vertical: isTablet ? 12 : 10,
-                ),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
-                  ),
-                  borderRadius: BorderRadius.circular(100),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                      colors: [Color(0xFF9C27B0), Color(0xFFE91E63)]),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('🤔', style: TextStyle(fontSize: 18)),
-                    const SizedBox(width: 8),
+                    const Text('🤔', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 6),
                     Text(
                       'Question ${currentQuestion + 1}',
-                      style: TextStyle(
-                        fontSize: isTablet ? 15 : 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          SizedBox(height: isTablet ? 24 : 20),
-
-          // Question Text with Icon
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0F9FF),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text('❓', style: TextStyle(fontSize: 24)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  currentQ['question'] ?? '',
-                  style: TextStyle(
-                    fontSize: isTablet ? 26 : 22,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF1F2937),
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: isTablet ? 16 : 14),
-
-          // Subtitle with Animation
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF0F9FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: const Color(0xFF8B5CF6).withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-            child: Row(
-              children: [
-                const Text('✨', style: TextStyle(fontSize: 20)),
-                SizedBox(width: isTablet ? 10 : 8),
-                Expanded(
-                  child: Text(
-                    'Tap the correct answer!',
-                    style: TextStyle(
-                      fontSize: isTablet ? 16 : 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF8B5CF6),
+              const SizedBox(height: 16),
+              // Question text with ❓ icon
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('❓', style: TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      q['question'] ?? '',
+                      style: TextStyle(
+                          fontSize: isTablet ? 21 : 19,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF1A1A2E),
+                          height: 1.4),
                     ),
                   ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // "Tap the correct answer!" hint bar (only before answering)
+        if (!showFeedback)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE8EAF6), width: 1.5),
+            ),
+            child: Row(
+              children: const [
+                Text('✨', style: TextStyle(fontSize: 17)),
+                SizedBox(width: 8),
+                Text(
+                  'Tap the correct answer!',
+                  style: TextStyle(
+                      color: Color(0xFF7986CB),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13),
                 ),
               ],
             ),
           ),
-          SizedBox(height: isTablet ? 28 : 24),
 
-          // Answer Options with Sequential Animation
-          ...List.generate(options.length, (index) {
-            return AnimatedOpacity(
-              opacity: optionsVisible[index] ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-              child: AnimatedSlide(
-                offset:
-                    optionsVisible[index] ? Offset.zero : const Offset(0.2, 0),
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutCubic,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                      bottom: index < options.length - 1
-                          ? (isTablet ? 14 : 12)
-                          : 0),
-                  child: _buildOptionButton(options[index], index, isTablet),
-                ),
+        const SizedBox(height: 12),
+
+        // Options list
+        ...List.generate(options.length, (index) {
+          return AnimatedOpacity(
+            opacity: optionsVisible[index] ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 300),
+            child: AnimatedSlide(
+              offset:
+                  optionsVisible[index] ? Offset.zero : const Offset(0.12, 0),
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeOutCubic,
+              child: Padding(
+                padding: EdgeInsets.only(
+                    bottom: index < options.length - 1 ? 12 : 0),
+                child: _buildOptionTile(options[index], index, isTablet),
               ),
-            );
-          }),
-
-          // Feedback
-          if (showFeedback) ...[
-            SizedBox(height: isTablet ? 24 : 20),
-            ScaleTransition(
-              scale: _feedbackAnimation,
-              child: _buildFeedback(options, isTablet),
             ),
-          ],
+          );
+        }),
 
-          // Next/Finish Button
-          if (showFeedback) ...[
-            SizedBox(height: isTablet ? 20 : 16),
-            _buildNavigationButton(isTablet),
-          ],
+        // Feedback + nav button
+        if (showFeedback) ...[
+          const SizedBox(height: 14),
+          ScaleTransition(
+              scale: _feedbackAnimation,
+              child: _buildFeedback(options, isTablet)),
+          const SizedBox(height: 12),
+          _buildNavButton(isTablet),
         ],
-      ),
+      ],
     );
   }
 
-  Widget _buildOptionButton(
-      Map<String, dynamic> option, int index, bool isTablet) {
-    final color = getOptionColor(index);
-    final isCorrect = option['correct'] ?? false;
+  // ─────────────────────────────────────────────────────────────
+  //  Option tile — matches screenshot: rounded rect, icon box left
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildOptionTile(Map<String, dynamic> opt, int index, bool isTablet) {
+    final colors = _getOptionColors(index);
+    final isCorrect = opt['correct'] ?? false;
     final isSelected = selectedAnswer == index;
+    final emoji = opt['emoji'] as String? ?? _getEmojiForOption(index);
 
     return AnimatedBuilder(
       animation: _shakeAnimation,
-      builder: (context, child) {
+      builder: (_, child) {
         final offset = isSelected && !isCorrect && showFeedback
             ? Offset(_shakeAnimation.value * (index % 2 == 0 ? 1 : -1), 0)
             : Offset.zero;
-
-        return Transform.translate(
-          offset: offset,
-          child: child,
-        );
+        return Transform.translate(offset: offset, child: child);
       },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: showFeedback ? null : () => handleAnswerSelect(index),
-          borderRadius: BorderRadius.circular(isTablet ? 20 : 18),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            padding: EdgeInsets.all(isTablet ? 20 : 18),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [color, color.withOpacity(0.85)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(isTablet ? 20 : 18),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.4),
-                  blurRadius: showFeedback && isSelected ? 20 : 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-              border: Border.all(
-                color: showFeedback && isSelected
-                    ? Colors.white
-                    : Colors.transparent,
-                width: 3,
-              ),
-            ),
+      child: GestureDetector(
+        onTap: showFeedback ? null : () => handleAnswerSelect(index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+                colors: colors,
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight),
+            boxShadow: [
+              BoxShadow(
+                  color:
+                      colors[0].withValues(alpha: showFeedback ? 0.18 : 0.38),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6))
+            ],
+            border: isSelected && showFeedback
+                ? Border.all(color: Colors.white, width: 2.5)
+                : null,
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+                horizontal: 14, vertical: isTablet ? 18 : 14),
             child: Row(
               children: [
-                // Emoji with Background
+                // Square icon box (matches screenshot)
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Text(
-                    option['emoji'] ?? '📝',
-                    style: TextStyle(fontSize: isTablet ? 32 : 28),
+                  child: Center(
+                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
                   ),
                 ),
-                SizedBox(width: isTablet ? 16 : 14),
+                const SizedBox(width: 14),
+                // Option text
                 Expanded(
                   child: Text(
-                    option['text'] ?? '',
+                    opt['text'] ?? '',
                     style: TextStyle(
-                      fontSize: isTablet ? 17 : 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      height: 1.3,
-                    ),
+                        color: Colors.white,
+                        fontSize: isTablet ? 15 : 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.35),
                   ),
                 ),
+                // Correct / wrong indicator
                 if (showFeedback && isCorrect)
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 28,
+                    height: 28,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.check,
-                        color: color, size: isTablet ? 24 : 20),
+                        shape: BoxShape.circle, color: Colors.white),
+                    child: const Icon(Icons.check,
+                        color: Color(0xFF00897B), size: 16),
                   ),
                 if (showFeedback && isSelected && !isCorrect)
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    width: 28,
+                    height: 28,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.close,
-                        color: color, size: isTablet ? 24 : 20),
+                        shape: BoxShape.circle, color: Colors.white),
+                    child: const Icon(Icons.close,
+                        color: Color(0xFFE53935), size: 16),
                   ),
               ],
             ),
@@ -1391,241 +1108,262 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
 
   Widget _buildFeedback(List<Map<String, dynamic>> options, bool isTablet) {
     final isCorrect = options[selectedAnswer!]['correct'] ?? false;
-
     return Container(
-      padding: EdgeInsets.all(isTablet ? 24 : 20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isCorrect
-              ? [const Color(0xFFD1FAE5), const Color(0xFFA7F3D0)]
-              : [const Color(0xFFFEE2E2), const Color(0xFFFECDCD)],
-        ),
-        borderRadius: BorderRadius.circular(isTablet ? 20 : 18),
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white,
         border: Border.all(
-          color: isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-          width: 3,
-        ),
-        boxShadow: [
-          BoxShadow(
             color:
-                (isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444))
-                    .withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Icon(
-              isCorrect ? Icons.check_circle : Icons.info,
-              color:
-                  isCorrect ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-              size: isTablet ? 32 : 28,
-            ),
-          ),
-          SizedBox(width: isTablet ? 16 : 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isCorrect ? '🎉 Awesome!' : '💪 Keep Trying!',
-                  style: TextStyle(
-                    fontSize: isTablet ? 22 : 20,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFF1F2937),
-                  ),
-                ),
-                SizedBox(height: isTablet ? 10 : 8),
-                Text(
-                  questions[currentQuestion]['explanation'] ??
-                      (isCorrect
-                          ? 'Great job! You got it right!'
-                          : 'Not quite, but keep trying!'),
-                  style: TextStyle(
-                    fontSize: isTablet ? 16 : 14,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF374151),
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavigationButton(bool isTablet) {
-    final isLastQuestion = currentQuestion == questions.length - 1;
-
-    return Container(
-      width: double.infinity,
-      height: isTablet ? 64 : 56,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isLastQuestion
-              ? [const Color(0xFF10B981), const Color(0xFF059669)]
-              : [const Color(0xFFFBBF24), const Color(0xFFF59E0B)],
-        ),
-        borderRadius: BorderRadius.circular(isTablet ? 20 : 18),
+                isCorrect ? const Color(0xFF00897B) : const Color(0xFFE53935),
+            width: 2),
         boxShadow: [
           BoxShadow(
-            color: (isLastQuestion
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFFBBF24))
-                .withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
+              color: (isCorrect
+                      ? const Color(0xFF00897B)
+                      : const Color(0xFFE53935))
+                  .withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: isLastQuestion ? handleFinish : handleNext,
-          borderRadius: BorderRadius.circular(isTablet ? 20 : 18),
-          child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isLastQuestion)
-                  const Text('🏆', style: TextStyle(fontSize: 24)),
-                if (!isLastQuestion)
-                  const Text('👉', style: TextStyle(fontSize: 24)),
-                SizedBox(width: isTablet ? 12 : 10),
-                Text(
-                  isLastQuestion ? 'Finish Quiz' : 'Next Question',
-                  style: TextStyle(
-                    fontSize: isTablet ? 20 : 18,
+      child: Row(children: [
+        Text(isCorrect ? '🎉' : '💪', style: const TextStyle(fontSize: 30)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isCorrect ? 'Awesome! Correct!' : 'Not quite!',
+                style: TextStyle(
+                    fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
+                    color: isCorrect
+                        ? const Color(0xFF00897B)
+                        : const Color(0xFFE53935)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                questions[currentQuestion]['explanation'] ?? '',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey.shade600, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildNavButton(bool isTablet) {
+    final isLast = currentQuestion == questions.length - 1;
+    return GestureDetector(
+      onTap: isLast ? handleFinish : handleNext,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: isLast
+                ? [const Color(0xFF00897B), const Color(0xFF26C6DA)]
+                : [const Color(0xFF7C4DFF), const Color(0xFFD500F9)],
+          ),
+          boxShadow: [
+            BoxShadow(
+                color:
+                    (isLast ? const Color(0xFF00897B) : const Color(0xFF7C4DFF))
+                        .withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 6))
+          ],
+        ),
+        child: Center(
+          child: Text(
+            isLast ? '🏆  Finish Quiz' : '➡️  Next Question',
+            style: const TextStyle(
+                color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
           ),
         ),
       ),
     );
   }
-}
 
-class _AnimatedBlob extends StatefulWidget {
-  final Color color;
-  final double size;
-  final int delay;
-
-  const _AnimatedBlob({
-    required this.color,
-    required this.size,
-    this.delay = 0,
-  });
-
-  @override
-  State<_AnimatedBlob> createState() => _AnimatedBlobState();
-}
-
-class _AnimatedBlobState extends State<_AnimatedBlob>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<Offset> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 8),
-      vsync: this,
-    );
-
-    _animation = Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset(
-        (Random().nextDouble() - 0.5) * 100,
-        (Random().nextDouble() - 0.5) * 100,
-      ),
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-
-    Future.delayed(Duration(seconds: widget.delay), () {
-      if (mounted) {
-        _controller.repeat(reverse: true);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: _animation.value,
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: widget.color,
-              boxShadow: [
-                BoxShadow(
-                  color: widget.color.withOpacity(0.4),
-                  blurRadius: 40,
-                  spreadRadius: 10,
+  // ─────────────────────────────────────────────────────────────
+  //  Loading
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildLoading() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFB2EBF2),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                      colors: [Color(0xFF9C27B0), Color(0xFFE91E63)]),
+                  boxShadow: [
+                    BoxShadow(
+                        color: const Color(0xFF9C27B0).withValues(alpha: 0.4),
+                        blurRadius: 28)
+                  ],
                 ),
-              ],
+                child: const Center(
+                    child: Text('🚀', style: TextStyle(fontSize: 44))),
+              ),
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 28),
+            const Text('Loading your Quiz...',
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1565C0))),
+            const SizedBox(height: 10),
+            Text('Get ready to be awesome! 🌟',
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: 180,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: const LinearProgressIndicator(
+                  backgroundColor: Color(0xFFCE93D8),
+                  color: Color(0xFF9C27B0),
+                  minHeight: 6,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Empty
+  // ─────────────────────────────────────────────────────────────
+  Widget _buildEmpty() {
+    return Scaffold(
+      backgroundColor: const Color(0xFFB2EBF2),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _backButton(() => Navigator.pop(context)),
+              ),
+            ),
+            Expanded(
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6)),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('📚', style: TextStyle(fontSize: 64)),
+                      const SizedBox(height: 18),
+                      const Text('No questions yet!',
+                          style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1565C0))),
+                      const SizedBox(height: 10),
+                      Text(
+                          'Your teacher is cooking up awesome questions! 👨‍🍳',
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                              height: 1.5),
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 22),
+                      GestureDetector(
+                        onTap: fetchQuestions,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                                colors: [Color(0xFF9C27B0), Color(0xFFE91E63)]),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Text('🔄 Try Again',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _backButton(VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFB2DFDB)),
+        ),
+        child: const Icon(Icons.arrow_back_ios_new,
+            color: Color(0xFF006064), size: 18),
+      ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+//  Confetti Widget
+// ─────────────────────────────────────────────────────────────
 class _ConfettiWidget extends StatelessWidget {
   final AnimationController controller;
-
   const _ConfettiWidget({required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: controller,
-      builder: (context, child) {
+      builder: (_, __) {
         return Stack(
-          children: List.generate(30, (index) {
-            final random = Random(index);
+          children: List.generate(30, (i) {
+            final rng = Random(i);
             return Positioned(
-              left: random.nextDouble() * MediaQuery.of(context).size.width,
-              top:
-                  -10 + (controller.value * MediaQuery.of(context).size.height),
+              left: rng.nextDouble() * MediaQuery.of(context).size.width,
+              top: -10 +
+                  controller.value * MediaQuery.of(context).size.height * 0.7,
               child: Transform.rotate(
-                angle: controller.value * 2 * pi * (random.nextDouble() * 4),
+                angle: controller.value * 2 * pi * (rng.nextDouble() * 4),
                 child: Text(
-                  ['🎉', '⭐', '✨', '🌟', '💫', '🎊', '🎈'][index % 7],
-                  style: const TextStyle(fontSize: 24),
+                  ['🎉', '⭐', '✨', '🌟', '💫', '🎊', '🎈'][i % 7],
+                  style: const TextStyle(fontSize: 20),
                 ),
               ),
             );

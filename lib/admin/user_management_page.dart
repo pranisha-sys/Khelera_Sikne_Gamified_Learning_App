@@ -713,7 +713,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
             ),
           ],
         ),
-        body: const ContentManagementPage(),
+        body: const ContentManagementPage(isTab: true),
         bottomNavigationBar: _buildBottomNavigationBar(),
       );
     }

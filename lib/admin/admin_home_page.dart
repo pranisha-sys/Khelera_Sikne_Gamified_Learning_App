@@ -312,6 +312,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
               color: Colors.white,
             ),
           ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                _selectedIndex = 0; // Go back to admin
+              });
+            },
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white),
@@ -323,7 +331,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             ),
           ],
         ),
-        body: const ContentManagementPage(),
+        body: const ContentManagementPage(isTab: true),
         bottomNavigationBar: _buildBottomNavigationBar(),
       );
     }
