@@ -772,7 +772,7 @@ class _StudentMatterTopicPageState extends State<StudentMatterTopicPage>
             MaterialPageRoute(
               builder: (_) => StudentQuestionView(
                 grade: widget.grade,
-                topicId: widget.topicId,
+                quizId: widget.topicId, // renamed to quizId
                 studentId: 'student_${DateTime.now().millisecondsSinceEpoch}',
               ),
             ),

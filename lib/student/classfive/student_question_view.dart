@@ -5,82 +5,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// ─────────────────────────────────────────────────────────────
-//  DEFAULT SAMPLE QUESTIONS — used when Firestore has none
-// ─────────────────────────────────────────────────────────────
-const List<Map<String, dynamic>> _sampleQuestions = [
-  {
-    'question': 'What is matter?',
-    'options': [
-      'Anything that has mass and takes up space',
-      'Only things you can see',
-      'Only liquids and gases',
-      'Things without any weight',
-    ],
-    'correctAnswer': 0,
-    'explanation':
-        'Matter is anything that has mass and occupies space — solids, liquids, and gases are all matter!',
-  },
-  {
-    'question': 'Which of the following is NOT a state of matter?',
-    'options': ['Solid', 'Liquid', 'Gas', 'Fire'],
-    'correctAnswer': 3,
-    'explanation':
-        'Fire is a chemical reaction (plasma-like), not a traditional state of matter. The three main states are solid, liquid, and gas.',
-  },
-  {
-    'question': 'What happens to water molecules when water freezes?',
-    'options': [
-      'They move faster',
-      'They disappear',
-      'They slow down and lock into place',
-      'They change into gas',
-    ],
-    'correctAnswer': 2,
-    'explanation':
-        'When water freezes, molecules lose energy, slow down, and arrange into a fixed crystal structure — that\'s ice!',
-  },
-  {
-    'question': 'Which state of matter has a definite shape AND volume?',
-    'options': ['Gas', 'Liquid', 'Solid', 'Plasma'],
-    'correctAnswer': 2,
-    'explanation':
-        'Solids have both a fixed shape and volume because their particles are tightly packed and don\'t move freely.',
-  },
-  {
-    'question': 'Air is an example of which state of matter?',
-    'options': [
-      'Solid',
-      'Liquid',
-      'Gas',
-      'Mixture of solid and liquid',
-    ],
-    'correctAnswer': 2,
-    'explanation':
-        'Air is a gas! Gas particles move freely and spread out to fill any container.',
-  },
-];
-
-// Option gradients matching the screenshot: purple, blue, pink, yellow
+// Option gradients: purple, blue, pink, yellow
 const List<List<Color>> _optionGradients = [
-  [Color(0xFF7C4DFF), Color(0xFFB388FF)], // purple
-  [Color(0xFF1E88E5), Color(0xFF64B5F6)], // blue
-  [Color(0xFFE91E63), Color(0xFFFF80AB)], // pink
-  [Color(0xFFF9A825), Color(0xFFFFD54F)], // yellow
+  [Color(0xFF7C4DFF), Color(0xFFB388FF)],
+  [Color(0xFF1E88E5), Color(0xFF64B5F6)],
+  [Color(0xFFE91E63), Color(0xFFFF80AB)],
+  [Color(0xFFF9A825), Color(0xFFFFD54F)],
 ];
 
-// Option icon emojis matching the screenshot
 const List<String> _optionEmojis = ['🎯', '💡', '⭐', '🌙'];
 
 class StudentQuestionView extends StatefulWidget {
   final String grade;
-  final String topicId;
+  final String quizId; // ← ID from 'quizzes' collection
   final String studentId;
 
   const StudentQuestionView({
     Key? key,
     required this.grade,
-    required this.topicId,
+    required this.quizId, // e.g. 'h62x2JgTUvLHj04zeXvm'
     required this.studentId,
   }) : super(key: key);
 
@@ -98,8 +41,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   int score = 0;
   List<Map<String, dynamic>> answeredQuestions = [];
   List<bool> optionsVisible = [false, false, false, false];
-
-  bool _usedFallback = false;
 
   late AnimationController _confettiController;
   late AnimationController _feedbackAnimationController;
@@ -179,179 +120,86 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   }
 
   // ─────────────────────────────────────────────────────────────
-  //  FETCH
+  //  FETCH — reads from quizzes/{quizId}/questions
   // ─────────────────────────────────────────────────────────────
   Future<void> fetchQuestions() async {
+    setState(() => loading = true);
     try {
-      setState(() => loading = true);
-      List<Map<String, dynamic>> fetched = [];
+      QuerySnapshot snap;
 
-      final topicDoc = await FirebaseFirestore.instance
-          .collection('grades')
-          .doc(widget.grade)
-          .collection('topics')
-          .doc(widget.topicId)
-          .get();
-
-      if (topicDoc.exists) {
-        final data = topicDoc.data()!;
-        final inlineArr = data['questions'] as List<dynamic>?;
-        if (inlineArr != null && inlineArr.isNotEmpty) {
-          fetched = _parseQuestionsFromArray(inlineArr);
-        }
-        if (fetched.isEmpty) {
-          final alt = (data['quiz'] ?? data['mcqs']) as List<dynamic>?;
-          if (alt != null && alt.isNotEmpty) {
-            fetched = _parseQuestionsFromArray(alt);
-          }
-        }
-      }
-
-      if (fetched.isEmpty) {
-        final snap = await FirebaseFirestore.instance
-            .collection('grades')
-            .doc(widget.grade)
-            .collection('topics')
-            .doc(widget.topicId)
+      // Try ordered fetch first; if no index, fall back to unordered
+      try {
+        snap = await FirebaseFirestore.instance
+            .collection('quizzes') // ← TOP-LEVEL quizzes collection
+            .doc(widget.quizId) // ← teacher-assigned quiz doc
             .collection('questions')
-            .orderBy('order', descending: false)
+            .orderBy('questionNumber', descending: false)
             .get();
-
-        if (snap.docs.isNotEmpty) {
-          fetched = snap.docs.map((doc) {
-            final q = doc.data();
-            final rawOptions = q['options'] as List<dynamic>? ?? [];
-            final correctIdx =
-                q['correctAnswer'] ?? q['correct_answer'] ?? q['answer'] ?? 0;
-            final options = rawOptions
-                .asMap()
-                .entries
-                .map((e) => {
-                      'text': e.value.toString(),
-                      'correct': e.key == correctIdx,
-                      'emoji': _getEmojiForOption(e.key),
-                    })
-                .toList();
-            return {
-              'id': doc.id,
-              'question': q['question'] ?? q['text'] ?? '',
-              'options': options,
-              'explanation': q['explanation'] ?? 'Amazing effort!',
-              'order': q['order'] ?? 0,
-            };
-          }).toList();
-        }
+      } catch (_) {
+        snap = await FirebaseFirestore.instance
+            .collection('quizzes')
+            .doc(widget.quizId)
+            .collection('questions')
+            .get();
       }
 
-      if (fetched.isEmpty) {
-        _usedFallback = true;
-        fetched = await _uploadAndReturnSampleQuestions();
+      if (snap.docs.isEmpty) {
+        setState(() {
+          questions = [];
+          loading = false;
+        });
+        return;
       }
+
+      final fetched = snap.docs.map((doc) {
+        final q = doc.data() as Map<String, dynamic>;
+        final rawOptions = q['options'] as List<dynamic>? ?? [];
+
+        // Support both correctAnswerIndex (from CreateQuizFromScratch) and correctAnswer
+        final correctIdx = q['correctAnswerIndex'] ??
+            q['correctAnswer'] ??
+            q['correct_answer'] ??
+            q['answer'] ??
+            0;
+
+        final options = rawOptions
+            .asMap()
+            .entries
+            .map((e) => {
+                  'text': e.value.toString(),
+                  'correct': e.key == correctIdx,
+                  'emoji':
+                      e.key < _optionEmojis.length ? _optionEmojis[e.key] : '⭐',
+                })
+            .toList();
+
+        return {
+          'id': doc.id,
+          'question': q['question'] ?? q['text'] ?? '',
+          'options': options,
+          // Support both answerExplanation (from teacher) and explanation
+          'explanation': q['answerExplanation'] ?? q['explanation'] ?? '',
+          'order': q['questionNumber'] ?? q['order'] ?? 0,
+        };
+      }).toList();
+
+      // Sort locally by order
+      fetched.sort((a, b) => (a['order'] as int).compareTo(b['order'] as int));
 
       setState(() {
         questions = fetched;
         loading = false;
       });
 
-      if (questions.isNotEmpty) {
-        _cardAnimationController.forward();
-        _showOptionsSequentially();
-      }
-    } catch (e, stack) {
-      debugPrint('❌ fetchQuestions error: $e\n$stack');
-      _usedFallback = true;
-      final fallback = _buildLocalSampleQuestions();
+      _cardAnimationController.forward();
+      _showOptionsSequentially();
+    } catch (e) {
+      debugPrint('❌ fetchQuestions error: $e');
       setState(() {
-        questions = fallback;
+        questions = [];
         loading = false;
       });
-      if (questions.isNotEmpty) {
-        _cardAnimationController.forward();
-        _showOptionsSequentially();
-      }
     }
-  }
-
-  Future<List<Map<String, dynamic>>> _uploadAndReturnSampleQuestions() async {
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final colRef = FirebaseFirestore.instance
-          .collection('grades')
-          .doc(widget.grade)
-          .collection('topics')
-          .doc(widget.topicId)
-          .collection('questions');
-
-      for (int i = 0; i < _sampleQuestions.length; i++) {
-        final q = _sampleQuestions[i];
-        final docRef = colRef.doc('q_${i + 1}');
-        batch.set(docRef, {
-          'order': i + 1,
-          'question': q['question'],
-          'options': q['options'],
-          'correctAnswer': q['correctAnswer'],
-          'explanation': q['explanation'],
-          'createdAt': FieldValue.serverTimestamp(),
-          'autoGenerated': true,
-        });
-      }
-      await batch.commit();
-    } catch (e) {
-      debugPrint('⚠️ Could not upload samples: $e');
-    }
-    return _buildLocalSampleQuestions();
-  }
-
-  List<Map<String, dynamic>> _buildLocalSampleQuestions() {
-    return _sampleQuestions.asMap().entries.map((entry) {
-      final i = entry.key;
-      final q = entry.value;
-      final options = (q['options'] as List<String>)
-          .asMap()
-          .entries
-          .map((e) => {
-                'text': e.value,
-                'correct': e.key == (q['correctAnswer'] as int),
-                'emoji': _getEmojiForOption(e.key),
-              })
-          .toList();
-      return {
-        'id': 'sample_$i',
-        'question': q['question'] as String,
-        'options': options,
-        'explanation': q['explanation'] as String,
-        'order': i + 1,
-      };
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> _parseQuestionsFromArray(List<dynamic> arr) {
-    return arr.asMap().entries.map((entry) {
-      final i = entry.key;
-      final q = entry.value as Map<String, dynamic>;
-      final correctIndex =
-          q['correctAnswer'] ?? q['correct_answer'] ?? q['answer'] ?? 0;
-      final options = (q['options'] as List<dynamic>? ?? [])
-          .asMap()
-          .entries
-          .map((e) => {
-                'text': e.value.toString(),
-                'correct': e.key == correctIndex,
-                'emoji': _getEmojiForOption(e.key),
-              })
-          .toList();
-      return {
-        'id': 'q_$i',
-        'question': q['question'] ?? q['text'] ?? '',
-        'options': options,
-        'explanation': q['explanation'] ?? 'Amazing effort!',
-        'order': i + 1,
-      };
-    }).toList();
-  }
-
-  String _getEmojiForOption(int index) {
-    return index < _optionEmojis.length ? _optionEmojis[index] : '⭐';
   }
 
   void _showOptionsSequentially() {
@@ -369,13 +217,14 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   Future<void> saveAnswer(
       String questionId, bool isCorrect, int answerIndex) async {
     try {
+      // Save to submissions using quizId (not topicId)
       final ref = FirebaseFirestore.instance
           .collection('submissions')
-          .doc('${widget.studentId}_${widget.grade}_${widget.topicId}');
+          .doc('${widget.studentId}_${widget.grade}_${widget.quizId}');
       await ref.set({
         'studentId': widget.studentId,
         'grade': widget.grade,
-        'topicId': widget.topicId,
+        'quizId': widget.quizId, // ← stores quizId, not topicId
         'answers': {
           questionId: {
             'selectedAnswer': answerIndex,
@@ -438,7 +287,9 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
       final correctAnswers =
           answeredQuestions.where((a) => a['correct']).length;
       final coinsEarned = correctAnswers * 10;
-      final percentage = (correctAnswers / questions.length * 100).round();
+      final percentage = questions.isNotEmpty
+          ? (correctAnswers / questions.length * 100).round()
+          : 0;
 
       final statsRef = FirebaseFirestore.instance
           .collection('users')
@@ -450,7 +301,10 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
       if (statsDoc.exists) {
         final d = statsDoc.data()!;
         final topics = List<String>.from(d['completed_topics'] ?? []);
-        if (!topics.contains(widget.topicId)) topics.add(widget.topicId);
+        // Mark quiz as complete using quizId
+        if (!topics.contains(widget.quizId)) topics.add(widget.quizId);
+        // Also mark 'quiz' so PlayAndLearnPage recognises completion
+        if (!topics.contains('quiz')) topics.add('quiz');
         await statsRef.update({
           'total_quizzes': (d['total_quizzes'] ?? 0) + 1,
           'total_coins': (d['total_coins'] ?? 0) + coinsEarned,
@@ -467,11 +321,17 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
           'total_questions': questions.length,
           'last_quiz_score': coinsEarned,
           'last_quiz_percentage': percentage,
-          'completed_topics': [widget.topicId],
+          'completed_topics': [widget.quizId, 'quiz'],
           'created_at': FieldValue.serverTimestamp(),
           'last_updated': FieldValue.serverTimestamp(),
         });
       }
+
+      // Also increment totalStudents on the quiz doc
+      await FirebaseFirestore.instance
+          .collection('quizzes')
+          .doc(widget.quizId)
+          .update({'totalStudents': FieldValue.increment(1)});
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(
@@ -486,7 +346,8 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
   void handleFinish() async {
     await _saveQuizStats();
     final correct = answeredQuestions.where((a) => a['correct']).length;
-    final pct = (correct / questions.length * 100).round();
+    final pct =
+        questions.isNotEmpty ? (correct / questions.length * 100).round() : 0;
     if (!mounted) return;
     _showResultsDialog(correct, pct);
   }
@@ -563,23 +424,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                     color: Color(0xFF9C27B0),
                     fontWeight: FontWeight.w600),
               ),
-              if (_usedFallback) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8E1),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFFFCC02)),
-                  ),
-                  child: const Text(
-                    '📝 Sample questions were used — your teacher can add custom ones anytime!',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF795548)),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
               const SizedBox(height: 18),
               Container(
                 padding: const EdgeInsets.all(18),
@@ -694,7 +538,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     if (loading) return _buildLoading();
     if (questions.isEmpty) return _buildEmpty();
 
-    final progress = (currentQuestion + 1) / questions.length;
     final currentQ = questions[currentQuestion];
     final options = List<Map<String, dynamic>>.from(currentQ['options']);
 
@@ -702,7 +545,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
       backgroundColor: const Color(0xFFE8EAF6),
       body: Stack(
         children: [
-          // Subtle gradient background
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -723,7 +565,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                   isTablet ? 24 : 16, 16, isTablet ? 24 : 16, 32),
               child: Column(
                 children: [
-                  _buildHeader(progress, isTablet),
+                  _buildHeader(isTablet),
                   const SizedBox(height: 16),
                   SlideTransition(
                     position: _cardSlideAnimation,
@@ -738,19 +580,13 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Header — matches screenshot: back | title pill | score
-  // ─────────────────────────────────────────────────────────────
-  Widget _buildHeader(double progress, bool isTablet) {
+  Widget _buildHeader(bool isTablet) {
     return Column(
       children: [
-        // Row: back button | title pill | score badge
         Row(
           children: [
-            // Back button
             _backButton(() => Navigator.pop(context)),
             const SizedBox(width: 10),
-            // Centered title pill
             Expanded(
               child: Container(
                 padding:
@@ -772,10 +608,10 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                   children: [
                     const Text('🎯', style: TextStyle(fontSize: 17)),
                     const SizedBox(width: 6),
-                    Flexible(
+                    const Flexible(
                       child: Text(
-                        widget.topicId.isNotEmpty ? widget.topicId : 'Quiz',
-                        style: const TextStyle(
+                        'Quiz Time!',
+                        style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w800,
                             fontSize: 14),
@@ -787,7 +623,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
               ),
             ),
             const SizedBox(width: 10),
-            // Score badge
             ScaleTransition(
               scale: _scoreAnimation,
               child: Container(
@@ -816,8 +651,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
             ),
           ],
         ),
-
-        // Grade label
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
@@ -833,10 +666,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                 fontWeight: FontWeight.w700),
           ),
         ),
-
         const SizedBox(height: 12),
-
-        // Progress bar + label
         Row(
           children: [
             Expanded(
@@ -879,15 +709,11 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Question card — matches screenshot layout
-  // ─────────────────────────────────────────────────────────────
   Widget _buildQuestionCard(Map<String, dynamic> q,
       List<Map<String, dynamic>> options, bool isTablet) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // White question card
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(22),
@@ -904,7 +730,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // "Question N" pill label
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -929,7 +754,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                 ),
               ),
               const SizedBox(height: 16),
-              // Question text with ❓ icon
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -950,10 +774,7 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
             ],
           ),
         ),
-
         const SizedBox(height: 12),
-
-        // "Tap the correct answer!" hint bar (only before answering)
         if (!showFeedback)
           Container(
             width: double.infinity,
@@ -963,8 +784,8 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFE8EAF6), width: 1.5),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Text('✨', style: TextStyle(fontSize: 17)),
                 SizedBox(width: 8),
                 Text(
@@ -977,17 +798,15 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
               ],
             ),
           ),
-
         const SizedBox(height: 12),
-
-        // Options list
         ...List.generate(options.length, (index) {
+          final visible =
+              index < optionsVisible.length && optionsVisible[index];
           return AnimatedOpacity(
-            opacity: optionsVisible[index] ? 1.0 : 0.0,
+            opacity: visible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 300),
             child: AnimatedSlide(
-              offset:
-                  optionsVisible[index] ? Offset.zero : const Offset(0.12, 0),
+              offset: visible ? Offset.zero : const Offset(0.12, 0),
               duration: const Duration(milliseconds: 350),
               curve: Curves.easeOutCubic,
               child: Padding(
@@ -998,8 +817,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
             ),
           );
         }),
-
-        // Feedback + nav button
         if (showFeedback) ...[
           const SizedBox(height: 14),
           ScaleTransition(
@@ -1012,14 +829,12 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Option tile — matches screenshot: rounded rect, icon box left
-  // ─────────────────────────────────────────────────────────────
   Widget _buildOptionTile(Map<String, dynamic> opt, int index, bool isTablet) {
     final colors = _getOptionColors(index);
     final isCorrect = opt['correct'] ?? false;
     final isSelected = selectedAnswer == index;
-    final emoji = opt['emoji'] as String? ?? _getEmojiForOption(index);
+    final emoji = opt['emoji'] as String? ??
+        (index < _optionEmojis.length ? _optionEmojis[index] : '⭐');
 
     return AnimatedBuilder(
       animation: _shakeAnimation,
@@ -1055,7 +870,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                 horizontal: 14, vertical: isTablet ? 18 : 14),
             child: Row(
               children: [
-                // Square icon box (matches screenshot)
                 Container(
                   width: 46,
                   height: 46,
@@ -1068,7 +882,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                   ),
                 ),
                 const SizedBox(width: 14),
-                // Option text
                 Expanded(
                   child: Text(
                     opt['text'] ?? '',
@@ -1079,7 +892,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                         height: 1.35),
                   ),
                 ),
-                // Correct / wrong indicator
                 if (showFeedback && isCorrect)
                   Container(
                     width: 28,
@@ -1108,6 +920,9 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
 
   Widget _buildFeedback(List<Map<String, dynamic>> options, bool isTablet) {
     final isCorrect = options[selectedAnswer!]['correct'] ?? false;
+    final explanation =
+        (questions[currentQuestion]['explanation'] as String? ?? '').trim();
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1143,12 +958,14 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
                         ? const Color(0xFF00897B)
                         : const Color(0xFFE53935)),
               ),
-              const SizedBox(height: 4),
-              Text(
-                questions[currentQuestion]['explanation'] ?? '',
-                style: TextStyle(
-                    fontSize: 12, color: Colors.grey.shade600, height: 1.4),
-              ),
+              if (explanation.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  explanation,
+                  style: TextStyle(
+                      fontSize: 12, color: Colors.grey.shade600, height: 1.4),
+                ),
+              ],
             ],
           ),
         ),
@@ -1190,9 +1007,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Loading
-  // ─────────────────────────────────────────────────────────────
   Widget _buildLoading() {
     return Scaffold(
       backgroundColor: const Color(0xFFB2EBF2),
@@ -1246,9 +1060,6 @@ class _StudentQuestionViewState extends State<StudentQuestionView>
     );
   }
 
-  // ─────────────────────────────────────────────────────────────
-  //  Empty
-  // ─────────────────────────────────────────────────────────────
   Widget _buildEmpty() {
     return Scaffold(
       backgroundColor: const Color(0xFFB2EBF2),
